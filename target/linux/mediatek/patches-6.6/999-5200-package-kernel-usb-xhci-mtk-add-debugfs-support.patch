@@ -9,7 +9,7 @@ index 734df05..a5edcab 100644
 -  KCONFIG:=CONFIG_USB_XHCI_MTK
 +  KCONFIG:= \
 +        CONFIG_USB_XHCI_MTK \
-+        CONFIG_USB_XHCI_MTK_DEBUGFS=n
++        CONFIG_USB_XHCI_MTK_DEBUGFS=y
    HIDDEN:=1
    FILES:= \
  	 $(LINUX_DIR)/drivers/usb/host/xhci-mtk-hcd.ko
