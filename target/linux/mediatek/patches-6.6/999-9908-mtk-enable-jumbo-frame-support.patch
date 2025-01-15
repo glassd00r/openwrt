@@ -150,8 +150,8 @@ Subject: [PATCH] net: mediatek: Add jumbo frame support
  
  			if (!data)
  				return -ENOMEM;
-@@ -4011,30 +4057,6 @@ static void mtk_hw_dump(struct mtk_eth *
-	}
+@@ -4011,30 +4057,6 @@ static void mtk_dim_tx(struct work_struc
+ 	dim->state = DIM_START_MEASURE;
  }
  
 -static void mtk_set_mcr_max_rx(struct mtk_mac *mac, u32 val)
