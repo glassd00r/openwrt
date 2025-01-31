@@ -41,7 +41,6 @@
 		compatible = "sff,sfp";
 		i2c-bus = <&i2c_sfp1>;
 		los-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
-		mod-def0-gpios = <&pio 82 GPIO_ACTIVE_LOW>;
 		tx-disable-gpios = <&pio 70 GPIO_ACTIVE_HIGH>;
 		tx-fault-gpios = <&pio 69 GPIO_ACTIVE_HIGH>;
 		rate-select0-gpios = <&pio 21 GPIO_ACTIVE_LOW>;
@@ -75,6 +74,10 @@
 			default-state = "off";
 		};
 	};
+
+	trng {
+		compatible = "mediatek,mt7988-rng";
+ 	};
 };
 
 &eth {
@@ -214,6 +217,12 @@
 			};
 		};
 	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	status = "okay";
 };
 
 &i2c2 {
