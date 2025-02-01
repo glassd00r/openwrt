@@ -14,7 +14,7 @@
  		.dma_max_len = MTK_TX_DMA_BUF_LEN_V2,
  		.dma_len_offset = 8,
 -		.dma_size = MTK_DMA_SIZE(2K),
-+		.dma_size = MTK_DMA_SIZE(4K),
++		.dma_size = MTK_DMA_SIZE(1K),
  	},
  };
  
