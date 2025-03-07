@@ -1,3 +1,5 @@
+diff --git a/drivers/net/ethernet/mediatek/Makefile b/drivers/net/ethernet/mediatek/Makefile
+index 03e008f..b6b45ce 100644
 --- a/drivers/net/ethernet/mediatek/Makefile
 +++ b/drivers/net/ethernet/mediatek/Makefile
 @@ -4,7 +4,7 @@
@@ -9,6 +11,8 @@
  mtk_eth-$(CONFIG_NET_MEDIATEK_SOC_WED) += mtk_wed.o mtk_wed_mcu.o mtk_wed_wo.o
  ifdef CONFIG_DEBUG_FS
  mtk_eth-$(CONFIG_NET_MEDIATEK_SOC_WED) += mtk_wed_debugfs.o
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index 3a9e9eb..552dba5 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 @@ -33,6 +33,7 @@
@@ -186,6 +190,8 @@
  	platform_set_drvdata(pdev, eth);
  	schedule_delayed_work(&eth->reset.monitor_work,
  			      MTK_DMA_MONITOR_TIMEOUT);
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.h b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+index b18fc5f..cfa85e2 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 @@ -86,7 +86,7 @@
@@ -306,7 +312,13 @@
  		u32	glo_cfg;	/* global configuration */
  		u32	rst_idx;	/* reset index */
  		u32	delay_irq;	/* delay interrupt */
-@@ -1185,14 +1242,17 @@ struct mtk_reg_map {
+@@ -1179,14 +1236,18 @@ struct mtk_reg_map {
+ 		u32	rx_ptr;		/* rx base pointer */
+ 		u32	rx_cnt_cfg;	/* rx max count configuration */
+ 		u32	qcrx_ptr;	/* rx cpu pointer */
++		u32	page;		/* page configuration */
+ 		u32	glo_cfg;	/* global configuration */
+ 		u32	rst_idx;	/* reset index */
  		u32	delay_irq;	/* delay interrupt */
  		u32	fc_th;		/* flow control */
  		u32	int_grp;
@@ -319,4 +331,3 @@
  		u32	crx_ptr;	/* tx release cpu pointer */
  		u32	drx_ptr;	/* tx release dma pointer */
  		u32	fq_head;	/* fq head pointer */
-   
