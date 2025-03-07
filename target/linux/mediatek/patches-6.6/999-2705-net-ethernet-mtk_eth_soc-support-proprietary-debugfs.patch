@@ -312,7 +312,7 @@ index b18fc5f..cfa85e2 100644
  		u32	glo_cfg;	/* global configuration */
  		u32	rst_idx;	/* reset index */
  		u32	delay_irq;	/* delay interrupt */
-@@ -1185,14 +1236,17 @@ struct mtk_reg_map {
+@@ -1179,14 +1235,17 @@ struct mtk_reg_map {
  		u32	delay_irq;	/* delay interrupt */
  		u32	fc_th;		/* flow control */
  		u32	int_grp;
