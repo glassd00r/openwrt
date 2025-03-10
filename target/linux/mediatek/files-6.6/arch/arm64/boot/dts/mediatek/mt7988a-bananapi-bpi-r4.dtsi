@@ -36,8 +36,16 @@
 		reg = <0x00 0x40000000 0x00 0x10000000>;
 	};
 
-	trng {
-		compatible = "mediatek,mt7988-rng";
+	/* SFP1 cage (WAN) */
+	sfp1: sfp1 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_sfp1>;
+		los-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
+		mod-def0-gpios = <&pio 82 GPIO_ACTIVE_LOW>;
+		tx-disable-gpios = <&pio 70 GPIO_ACTIVE_HIGH>;
+		tx-fault-gpios = <&pio 69 GPIO_ACTIVE_HIGH>;
+		rate-select0-gpios = <&pio 21 GPIO_ACTIVE_LOW>;
+		maximum-power-milliwatt = <3000>;
 	};
 
 	gpio-keys {
@@ -78,8 +86,9 @@
 };
 
 &gmac2 {
+	sfp = <&sfp1>;
 	managed = "in-band-status";
-	phy-mode = "10gbase-r";
+	phy-mode = "usxgmii";
 	status = "okay";
 	openwrt,netdev-name = "sfp-wan";
 };
@@ -91,6 +100,10 @@
 &gsw_phy0 {
 	pinctrl-names = "gbe-led";
 	pinctrl-0 = <&gbe0_led0_pins>;
+};
+
+&gsw_port0 {
+	label = "wan";
 };
 
 &gsw_phy0_led0 {
@@ -201,12 +214,6 @@
 			};
 		};
 	};
-};
-
-&i2c1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c1_pins>;
-	status = "okay";
 };
 
 &i2c2 {
