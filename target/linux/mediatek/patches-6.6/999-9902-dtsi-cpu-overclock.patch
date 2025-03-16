@@ -1,0 +1,20 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7988a.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7988a.dtsi
+@@ -109,7 +109,7 @@
+ 			};
+ 
+ 			opp03 {
+-				opp-hz = /bits/ 64 <1800000000>;
++				opp-hz = /bits/ 64 <2200000000>;
+ 				opp-microvolt = <900000>;
+ 			};
+ 		};
+@@ -135,7 +135,7 @@
+ 		};
+ 
+ 		opp03 {
+-			opp-hz = /bits/ 64 <1080000000>;
++			opp-hz = /bits/ 64 <1320000000>;
+ 			opp-microvolt = <900000>;
+ 		};
+ 	};
