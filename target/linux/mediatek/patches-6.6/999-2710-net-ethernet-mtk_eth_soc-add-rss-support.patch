@@ -1,15 +1,3 @@
-From 9a41cebc6be0e35df878a797c070a2b75cf1677d Mon Sep 17 00:00:00 2001
-From: Mason Chang <mason-cw.chang@mediatek.com>
-Date: Wed, 19 Mar 2025 11:20:39 +0800
-Subject: [PATCH] net: ethernet: mtk_eth_soc: add rss support
-
----
- drivers/net/ethernet/mediatek/mtk_eth_soc.c | 499 +++++++++++++++-----
- drivers/net/ethernet/mediatek/mtk_eth_soc.h |  93 +++-
- 2 files changed, 465 insertions(+), 127 deletions(-)
-
-diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-index 06b4042..7554efc 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 @@ -1305,6 +1305,7 @@ static bool mtk_rx_get_desc(struct mtk_eth *eth, struct mtk_rx_dma_v2 *rxd,
@@ -657,9 +645,9 @@ index 06b4042..7554efc 100644
  			    struct net_device *sb_dev)
  {
 @@ -4815,6 +5041,10 @@ static const struct ethtool_ops mtk_ethtool_ops = {
- 	.set_pauseparam		= mtk_set_pauseparam,
- 	.get_rxnfc		= mtk_get_rxnfc,
  	.set_rxnfc		= mtk_set_rxnfc,
+ 	.get_eee		= mtk_get_eee,
+ 	.set_eee		= mtk_set_eee,
 +	.get_rxfh_key_size	= mtk_get_rxfh_key_size,
 +	.get_rxfh_indir_size	= mtk_get_rxfh_indir_size,
 +	.get_rxfh		= mtk_get_rxfh,
