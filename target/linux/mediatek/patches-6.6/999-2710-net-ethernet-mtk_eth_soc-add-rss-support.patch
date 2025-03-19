@@ -657,9 +657,9 @@ index 06b4042..7554efc 100644
  			    struct net_device *sb_dev)
  {
 @@ -4815,6 +5041,10 @@ static const struct ethtool_ops mtk_ethtool_ops = {
- 	.set_pauseparam		= mtk_set_pauseparam,
- 	.get_rxnfc		= mtk_get_rxnfc,
  	.set_rxnfc		= mtk_set_rxnfc,
+  .get_eee		= mtk_get_eee,
+  .set_eee		= mtk_set_eee,
 +	.get_rxfh_key_size	= mtk_get_rxfh_key_size,
 +	.get_rxfh_indir_size	= mtk_get_rxfh_indir_size,
 +	.get_rxfh		= mtk_get_rxfh,
