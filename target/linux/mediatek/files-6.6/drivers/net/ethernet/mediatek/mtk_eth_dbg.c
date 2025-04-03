@@ -219,12 +219,21 @@ static ssize_t qdma_queue_show(struct file *file, char __user *user_buf,
 		scheduler = FIELD_GET(MTK_QTX_SCH_TX_SEL, qtx_sch);
 
 	min_rate_en = FIELD_GET(MTK_QTX_SCH_MIN_RATE_EN, qtx_sch);
-	min_rate = FIELD_GET(MTK_QTX_SCH_MIN_RATE_MAN, qtx_sch);
-	min_rate_exp = FIELD_GET(MTK_QTX_SCH_MIN_RATE_EXP, qtx_sch);
-	max_rate_en = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EN, qtx_sch);
-	max_weight = FIELD_GET(MTK_QTX_SCH_MAX_RATE_WEIGHT, qtx_sch);
-	max_rate = FIELD_GET(MTK_QTX_SCH_MAX_RATE_MAN, qtx_sch);
-	max_rate_exp = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EXP, qtx_sch);
+	if (mtk_is_netsys_v3_or_greater(eth) && (eth->soc->caps != MT7988_CAPS)) {
+		min_rate = FIELD_GET(MTK_QTX_SCH_MIN_RATE_MAN_V3, qtx_sch);
+		min_rate_exp = FIELD_GET(MTK_QTX_SCH_MIN_RATE_EXP_V3, qtx_sch);
+		max_rate_en = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EN_V3, qtx_sch);
+		max_weight = FIELD_GET(MTK_QTX_SCH_MAX_RATE_WEIGHT_V3, qtx_sch);
+		max_rate = FIELD_GET(MTK_QTX_SCH_MAX_RATE_MAN_V3, qtx_sch);
+		max_rate_exp = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EXP_V3, qtx_sch);
+	} else {
+		min_rate = FIELD_GET(MTK_QTX_SCH_MIN_RATE_MAN, qtx_sch);
+		min_rate_exp = FIELD_GET(MTK_QTX_SCH_MIN_RATE_EXP, qtx_sch);
+		max_rate_en = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EN, qtx_sch);
+		max_weight = FIELD_GET(MTK_QTX_SCH_MAX_RATE_WEIGHT, qtx_sch);
+		max_rate = FIELD_GET(MTK_QTX_SCH_MAX_RATE_MAN, qtx_sch);
+		max_rate_exp = FIELD_GET(MTK_QTX_SCH_MAX_RATE_EXP, qtx_sch);
+	}
 
 	while (min_rate_exp--)
 		min_rate *= 10;
@@ -301,7 +310,7 @@ static ssize_t qdma_queue_write(struct file *file, const char __user *buf,
 
 	line[length] = '\0';
 
-	if (mtk_is_netsys_v2_or_greater(eth)) {
+	if (mtk_is_netsys_v3_or_greater(eth)) {
 		if (max_rate > 10000000 || max_rate < 0 ||
 		    min_rate > 10000000 || min_rate < 0)
 			return -EINVAL;
@@ -328,13 +337,23 @@ static ssize_t qdma_queue_write(struct file *file, const char __user *buf,
 
 	if (min_enable)
 		qtx_sch |= MTK_QTX_SCH_MIN_RATE_EN;
-	qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_MAN, min_rate);
-	qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_EXP, min_exp);
-	if (max_enable)
-		qtx_sch |= MTK_QTX_SCH_MAX_RATE_EN;
-	qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_WEIGHT, weight);
-	qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_MAN, max_rate);
-	qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_EXP, max_exp);
+	if (mtk_is_netsys_v3_or_greater(eth) && (eth->soc->caps != MT7988_CAPS)) {
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_MAN_V3, min_rate);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_EXP_V3, min_exp);
+		if (max_enable)
+			qtx_sch |= MTK_QTX_SCH_MAX_RATE_EN_V3;
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_WEIGHT_V3, weight);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_MAN_V3, max_rate);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_EXP_V3, max_exp);
+	} else {
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_MAN, min_rate);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MIN_RATE_EXP, min_exp);
+		if (max_enable)
+			qtx_sch |= MTK_QTX_SCH_MAX_RATE_EN;
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_WEIGHT, weight);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_MAN, max_rate);
+		qtx_sch |= FIELD_PREP(MTK_QTX_SCH_MAX_RATE_EXP, max_exp);
+	}
 	mtk_w32(eth, qtx_sch, soc->reg_map->qdma.qtx_sch +
 			      (id % MTK_QTX_PER_PAGE) * MTK_QTX_OFFSET);
 
@@ -1122,6 +1141,54 @@ static const struct proc_ops switch_count_fops = {
 	.proc_release = single_release
 };
 
+void mac_mib_dump(struct seq_file *seq, u32 gdm_id)
+{
+	struct mtk_eth *eth = g_eth;
+
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_UC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_UC_BYTE_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_MC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_MC_BYTE_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_BC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, TX_BC_BYTE_CNT);
+
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_UC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_UC_BYTE_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_MC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_MC_BYTE_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_BC_PKT_CNT);
+	PRINT_FORMATTED_MAC_MIB64(seq, RX_BC_BYTE_CNT);
+}
+
+int mac_cnt_read(struct seq_file *seq, void *v)
+{
+	int i;
+
+	seq_puts(seq, "+------------------------------------+\n");
+	seq_puts(seq, "|              <<GMAC>>              |\n");
+
+	for (i = MTK_GMAC1_ID; i < MTK_GMAC_ID_MAX; i++) {
+		mac_mib_dump(seq, i);
+		seq_puts(seq, "|                                    |\n");
+	}
+
+	seq_puts(seq, "+------------------------------------+\n");
+
+	return 0;
+}
+
+static int mac_count_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, mac_cnt_read, 0);
+}
+
+static const struct proc_ops mac_count_fops = {
+	.proc_open = mac_count_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release
+};
+
 void xfi_mib_dump(struct seq_file *seq, u32 gdm_id)
 {
 	struct mtk_eth *eth = g_eth;
@@ -1454,11 +1521,15 @@ int dbg_regs_read(struct seq_file *seq, void *v)
 		seq_printf(seq, "| XMAC_P1_MCR	: %08x |\n",
 			   mtk_r32(eth, MTK_XMAC_MCR(1)));
 		seq_printf(seq, "| XMAC_P1_STS	: %08x |\n",
-			   mtk_r32(eth, MTK_XGMAC_STS(1)));
-		seq_printf(seq, "| XMAC_P2_MCR	: %08x |\n",
-			   mtk_r32(eth, MTK_XMAC_MCR(2)));
-		seq_printf(seq, "| XMAC_P2_STS	: %08x |\n",
-			   mtk_r32(eth, MTK_XGMAC_STS(2)));
+			   mtk_r32(eth, MTK_HAS_CAPS(eth->soc->caps, MTK_XGMAC_V2) ?
+					MTK_XMAC_STS(1) : MTK_XGMAC_STS(1)));
+		if (MTK_HAS_CAPS(eth->soc->caps, MTK_GMAC3_USXGMII)) {
+			seq_printf(seq, "| XMAC_P2_MCR	: %08x |\n",
+				   mtk_r32(eth, MTK_XMAC_MCR(2)));
+			seq_printf(seq, "| XMAC_P2_STS	: %08x |\n",
+				   mtk_r32(eth, MTK_HAS_CAPS(eth->soc->caps, MTK_XGMAC_V2) ?
+						MTK_XMAC_STS(2) : MTK_XGMAC_STS(2)));
+		}
 	}
 
 	if (mtk_is_netsys_v2_or_greater(eth)) {
@@ -2053,6 +2124,95 @@ void hw_lro_auto_tlb_dump_v2(struct seq_file *seq, u32 index)
 	}
 }
 
+void hw_lro_auto_tlb_dump_v3(struct seq_file *seq, u32 index)
+{
+	struct mtk_eth *eth = g_eth;
+	u32 val, sport, dport, vld, dip_idx, mode;
+	u32 ipv6[4] = { 0 };
+	u32 ipv4 = 0;
+	int ret;
+
+	/* dump the LRO_DATA table for the specific entry */
+	val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+	val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DATA_BASE + index);
+	val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+	mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+	/* check if the GLO_MEM access is successful */
+	ret = FIELD_GET(MTK_GLO_MEM_CMD, mtk_r32(eth, MTK_GLO_MEM_CTRL));
+	if (ret != 0) {
+		pr_warn("GLO_MEM read/write error\n");
+		return;
+	}
+
+	/* dump the valid entries of the auto-learn table */
+	vld = FIELD_GET(MTK_LRO_DATA_VLD, mtk_r32(eth, MTK_GLO_MEM_DATA(6)));
+	if (vld) {
+		if (index < 5)
+			seq_printf(seq,
+				   "\n===== TABLE Entry: %d (onging) =====\n",
+				   index);
+		else
+			seq_printf(seq,
+				   "\n===== TABLE Entry: %d (candidate) =====\n",
+				   index);
+
+		/* determine the DIP index for the specific entry */
+		dip_idx = FIELD_GET(MTK_LRO_DATA_DIP_IDX, mtk_r32(eth, MTK_GLO_MEM_DATA(5)));
+		/* switch to the LRO_DIP table for the specific DIP index */
+		val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+		val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DIP_BASE + dip_idx);
+		val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+		mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+		/* determine the mode for the specific DIP index */
+		mode = FIELD_GET(MTK_LRO_DIP_MODE, mtk_r32(eth, MTK_GLO_MEM_DATA(4)));
+		/* dump the SIP and DIP */
+		if (mode == MTK_LRO_DIP_IPV4) {
+			val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+			val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DATA_BASE + index);
+			val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+			mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+			ipv4 = mtk_r32(eth, MTK_GLO_MEM_DATA(1));
+			seq_printf(seq, "SIP = 0x%x: (IPv4)\n", ipv4);
+			val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+			val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DIP_BASE + dip_idx);
+			val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+			mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+			ipv4 = mtk_r32(eth, MTK_GLO_MEM_DATA(0));
+			seq_printf(seq, "DIP = 0x%x: (IPv4)\n", ipv4);
+		} else if (mode == MTK_LRO_DIP_IPV6) {
+			val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+			val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DATA_BASE + index);
+			val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+			mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+			ipv6[3] = mtk_r32(eth, MTK_GLO_MEM_DATA(4));
+			ipv6[2] = mtk_r32(eth, MTK_GLO_MEM_DATA(3));
+			ipv6[1] = mtk_r32(eth, MTK_GLO_MEM_DATA(2));
+			ipv6[0] = mtk_r32(eth, MTK_GLO_MEM_DATA(1));
+			seq_printf(seq, "SIP = 0x%x:0x%x:0x%x:0x%x (IPv6)\n",
+				   ipv6[3], ipv6[2], ipv6[1], ipv6[0]);
+			val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+			val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DIP_BASE + dip_idx);
+			val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+			mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+			ipv6[3] = mtk_r32(eth, MTK_GLO_MEM_DATA(3));
+			ipv6[2] = mtk_r32(eth, MTK_GLO_MEM_DATA(2));
+			ipv6[1] = mtk_r32(eth, MTK_GLO_MEM_DATA(1));
+			ipv6[0] = mtk_r32(eth, MTK_GLO_MEM_DATA(0));
+			seq_printf(seq, "DIP = 0x%x:0x%x:0x%x:0x%x (IPv6)\n",
+				   ipv6[3], ipv6[2], ipv6[1], ipv6[0]);
+		}
+
+		/* dump the SPORT and DPORT */
+		val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+		val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_DATA_BASE + index);
+		val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+		mtk_w32(eth, val, MTK_GLO_MEM_CTRL);
+		sport = FIELD_GET(MTK_LRO_DATA_SPORT, mtk_r32(eth, MTK_GLO_MEM_DATA(0)));
+		dport = FIELD_GET(MTK_LRO_DATA_DPORT, mtk_r32(eth, MTK_GLO_MEM_DATA(0)));
+		seq_printf(seq, "TCP SPORT = %d | TCP DPORT = %d\n", sport, dport);
+	}
+}
+
 int hw_lro_auto_tlb_read(struct seq_file *seq, void *v)
 {
 	struct mtk_eth *eth = g_eth;
@@ -2073,8 +2233,12 @@ int hw_lro_auto_tlb_read(struct seq_file *seq, void *v)
 	seq_puts(seq, "[5] = hwlro_stats_enable_ctrl\n\n");
 
 	if (mtk_is_netsys_v3_or_greater(eth)) {
-		for (i = 1; i <= 8; i++)
-			hw_lro_auto_tlb_dump_v2(seq, i);
+		for (i = 1; i <= 8; i++) {
+			if (MTK_HAS_CAPS(eth->soc->caps, MTK_GLO_MEM_ACCESS))
+				hw_lro_auto_tlb_dump_v3(seq, i);
+			else
+				hw_lro_auto_tlb_dump_v2(seq, i);
+		}
 	} else {
 		/* Read valid entries of the auto-learn table */
 		mtk_w32(eth, 0, MTK_FE_ALT_CF8);
@@ -2094,23 +2258,33 @@ int hw_lro_auto_tlb_read(struct seq_file *seq, void *v)
 	seq_puts(seq, "\nHW LRO Ring Settings\n");
 
 	for (i = 1; i <= MTK_HW_LRO_RING_NUM; i++) {
-		reg_op1 = mtk_r32(eth, MTK_LRO_CTRL_DW1_CFG(i));
-		reg_op2 = mtk_r32(eth, MTK_LRO_CTRL_DW2_CFG(i));
-		reg_op3 = mtk_r32(eth, MTK_LRO_CTRL_DW3_CFG(i));
+		if (MTK_HAS_CAPS(eth->soc->caps, MTK_GLO_MEM_ACCESS)) {
+			reg_val = FIELD_PREP(MTK_GLO_MEM_IDX, MTK_LRO_MEM_IDX);
+			reg_val |= FIELD_PREP(MTK_GLO_MEM_ADDR, MTK_LRO_MEM_CFG_BASE + i);
+			reg_val |= FIELD_PREP(MTK_GLO_MEM_CMD, MTK_GLO_MEM_READ);
+			mtk_w32(eth, reg_val, MTK_GLO_MEM_CTRL);
+			agg_cnt = FIELD_GET(MTK_RING_MAX_AGG_CNT,
+					    mtk_r32(eth, MTK_GLO_MEM_DATA(1)));
+			agg_time = FIELD_GET(MTK_RING_MAX_AGG_TIME_V2,
+					     mtk_r32(eth, MTK_GLO_MEM_DATA(0)));
+			age_time = FIELD_GET(MTK_RING_AGE_TIME,
+					     mtk_r32(eth, MTK_GLO_MEM_DATA(0)));
+		} else {
+			reg_op1 = mtk_r32(eth, MTK_LRO_CTRL_DW1_CFG(i));
+			reg_op2 = mtk_r32(eth, MTK_LRO_CTRL_DW2_CFG(i));
+			reg_op3 = mtk_r32(eth, MTK_LRO_CTRL_DW3_CFG(i));
+
+			agg_cnt = ((reg_op3 & 0x3) << 6) |
+				   ((reg_op2 >> MTK_LRO_RING_AGG_CNT_L_OFFSET) & 0x3f);
+			agg_time = (reg_op2 >> MTK_LRO_RING_AGG_TIME_OFFSET) & 0xffff;
+			age_time = ((reg_op2 & 0x3f) << 10) |
+				    ((reg_op1 >> MTK_LRO_RING_AGE_TIME_L_OFFSET) & 0x3ff);
+		}
 		reg_op4 = mtk_r32(eth, MTK_PDMA_LRO_CTRL_DW2);
 
-		agg_cnt =
-		    ((reg_op3 & 0x3) << 6) |
-		    ((reg_op2 >> MTK_LRO_RING_AGG_CNT_L_OFFSET) & 0x3f);
-		agg_time = (reg_op2 >> MTK_LRO_RING_AGG_TIME_OFFSET) & 0xffff;
-		age_time =
-		    ((reg_op2 & 0x3f) << 10) |
-		    ((reg_op1 >> MTK_LRO_RING_AGE_TIME_L_OFFSET) & 0x3ff);
 		seq_printf(seq,
 			   "Ring[%d]: MAX_AGG_CNT=%d, AGG_TIME=%d, AGE_TIME=%d, Threshold=%d\n",
-			   !(mtk_is_netsys_v2_or_greater(eth)) ?
-			   i : i+3,
-			   agg_cnt, agg_time, age_time, reg_op4);
+			   MTK_HW_LRO_RING(i), agg_cnt, agg_time, age_time, reg_op4);
 	}
 
 	seq_puts(seq, "\n");
@@ -2132,7 +2306,7 @@ static const struct proc_ops hw_lro_auto_tlb_fops = {
 };
 
 struct proc_dir_entry *proc_reg_dir;
-static struct proc_dir_entry *proc_esw_cnt, *proc_xfi_cnt,
+static struct proc_dir_entry *proc_esw_cnt, *proc_mac_cnt, *proc_xfi_cnt,
 			     *proc_dbg_regs, *proc_reset_event;
 
 int debug_proc_init(struct mtk_eth *eth)
@@ -2163,6 +2337,13 @@ int debug_proc_init(struct mtk_eth *eth)
 		pr_notice("!! FAIL to create %s PROC !!\n", PROCREG_ESW_CNT);
 
 	if (mtk_is_netsys_v3_or_greater(g_eth)) {
+		proc_mac_cnt =
+		    proc_create(PROCREG_MAC_CNT, 0,
+				proc_reg_dir, &mac_count_fops);
+		if (!proc_mac_cnt)
+			pr_notice("!! FAIL to create %s PROC !!\n",
+				  PROCREG_MAC_CNT);
+
 		proc_xfi_cnt =
 		    proc_create(PROCREG_XFI_CNT, 0,
 				proc_reg_dir, &xfi_count_fops);
@@ -2209,6 +2390,9 @@ void debug_proc_exit(void)
 
 	if (proc_esw_cnt)
 		remove_proc_entry(PROCREG_ESW_CNT, proc_reg_dir);
+
+	if (proc_mac_cnt)
+		remove_proc_entry(PROCREG_MAC_CNT, proc_reg_dir);
 
 	if (proc_xfi_cnt)
 		remove_proc_entry(PROCREG_XFI_CNT, proc_reg_dir);
