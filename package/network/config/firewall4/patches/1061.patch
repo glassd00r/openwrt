@@ -1,0 +1,41 @@
+From 609a1610f0a236efd7d35ef78828908339dd4504 Mon Sep 17 00:00:00 2001
+From: Andris PE <neandris@gmail.com>
+Date: Sun, 11 May 2025 19:06:50 +0000
+Subject: [PATCH] scripts: restore fw3 ct flush behavior
+
+Flush conntrack if fw4 is started with fw4 table absent
+
+Approximates fw3 ct flush when no iptables rules are present
+
+Prevents (deletes) eternal ghost states created at early boot.
+
+Signed-off-by: Andris PE <neandris@gmail.com>
+---
+ root/sbin/fw4 | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/root/sbin/fw4 b/root/sbin/fw4
+index d9ac8a1..036e233 100755
+--- a/root/sbin/fw4
++++ b/root/sbin/fw4
+@@ -37,6 +37,7 @@ start() {
+ 
+ 		ACTION=includes \
+ 			utpl -S $MAIN
++		[ -n "$CTFLUSH" ] && echo f > /proc/net/nf_conntrack
+ 	} 1000>$LOCK
+ }
+ 
+@@ -95,7 +96,11 @@ while [ -n "$1" ]; do
+ done
+ 
+ case "$1" in
+-	start|reload)
++	start)
++		nft 'create table inet fw4' 2>/dev/null && export CTFLUSH=1
++		start "$1"
++	;;
++	reload)
+ 		start "$1"
+ 	;;
+ 	stop)
