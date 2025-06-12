@@ -29,5 +29,4 @@
 +	phy-mode = "10gbase-r";
  	status = "okay";
  };
-
-
+ 
