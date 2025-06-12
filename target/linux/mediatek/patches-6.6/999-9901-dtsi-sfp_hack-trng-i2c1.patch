@@ -28,5 +28,5 @@
 -	phy-mode = "usxgmii";
 +	phy-mode = "10gbase-r";
  	status = "okay";
- 	openwrt,netdev-name = "sfp-wan";
  };
+
