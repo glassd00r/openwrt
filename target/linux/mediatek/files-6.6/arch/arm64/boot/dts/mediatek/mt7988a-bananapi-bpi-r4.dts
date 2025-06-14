@@ -27,7 +27,7 @@
 &gmac1 {
 	sfp = <&sfp2>;
 	managed = "in-band-status";
-	phy-mode = "usxgmii";
+	phy-mode = "10gbase-r";
 	status = "okay";
 };
 
