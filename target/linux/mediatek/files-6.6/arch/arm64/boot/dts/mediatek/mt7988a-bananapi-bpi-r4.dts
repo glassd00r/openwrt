@@ -32,6 +32,7 @@
 };
 
 &hnat {
+	interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>;
 	mtketh-wan = "eth2";
 	mtketh-lan = "eth0";
 	mtketh-lan2 = "eth1";
