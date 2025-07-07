@@ -1980,6 +1980,26 @@ endef
 $(eval $(call KernelPackage,mtk-t7xx))
 
 
+define KernelPackage/mediatek_hnat
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Mediatek HNAT module
+  DEPENDS:=@TARGET_mediatek +kmod-nf-conntrack
+  KCONFIG:= \
+	CONFIG_BRIDGE_NETFILTER=y \
+	CONFIG_NETFILTER_FAMILY_BRIDGE=y \
+	CONFIG_NET_MEDIATEK_HNAT
+  FILES:= \
+        $(LINUX_DIR)/drivers/net/ethernet/mediatek/mtk_hnat/mtkhnat.ko
+  AUTOLOAD:=$(call AutoLoad,20,mtkhnat)
+endef
+
+define KernelPackage/mediatek_hnat/description
+  Kernel modules for MediaTek HW NAT offloading
+endef
+
+$(eval $(call KernelPackage,mediatek_hnat))
+
+
 define KernelPackage/atlantic
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Aquantia AQtion 10Gbps Ethernet NIC
