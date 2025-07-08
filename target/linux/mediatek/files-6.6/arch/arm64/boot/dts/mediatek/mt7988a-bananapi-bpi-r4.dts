@@ -73,7 +73,6 @@
 		fixed-link {
 			speed = <10000>;
 			full-duplex;
-			pause;
 		};
 	};
 	mdio1: mdio-bus {
