@@ -355,6 +355,10 @@
 	status = "okay";
 };
 
+&switch {
+	status = "disabled";
+};
+
 &ethwarp {
 	compatible = "mediatek,mt7988-ethwarp", "syscon";
 };
