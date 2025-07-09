@@ -36,8 +36,16 @@
 		reg = <0x00 0x40000000 0x00 0x10000000>;
 	};
 
-	trng {
-		compatible = "mediatek,mt7988-rng";
+	/* SFP1 cage (WAN) */
+	sfp1: sfp1 {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_sfp1>;
+		los-gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
+		mod-def0-gpios = <&pio 82 GPIO_ACTIVE_LOW>;
+		tx-disable-gpios = <&pio 70 GPIO_ACTIVE_HIGH>;
+		tx-fault-gpios = <&pio 69 GPIO_ACTIVE_HIGH>;
+		rate-select0-gpios = <&pio 21 GPIO_ACTIVE_LOW>;
+		maximum-power-milliwatt = <3000>;
 	};
 
 	gpio-keys {
@@ -78,9 +86,58 @@
 };
 
 &gmac2 {
+	sfp = <&sfp1>;
 	managed = "in-band-status";
-	phy-mode = "10gbase-r";
+	phy-mode = "usxgmii";
 	status = "okay";
+};
+
+&switch {
+	status = "okay";
+};
+
+&gsw_phy0 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe0_led0_pins>;
+};
+
+&gsw_port0 {
+	label = "wan";
+};
+
+&gsw_phy0_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy1 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe1_led0_pins>;
+};
+
+&gsw_phy1_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy2 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe2_led0_pins>;
+};
+
+&gsw_phy2_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy3 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe3_led0_pins>;
+};
+
+&gsw_phy3_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
 };
 
 &cpu0 {
@@ -344,179 +401,4 @@
 
 &xphy {
 	status = "okay";
-};
-
-&hnat {
-	mtketh-wan = "eth2";
-	mtketh-lan = "lan";
-	mtketh-lan2 = "eth1";
-	mtketh-max-gmac = <3>;
-	mtketh-ppe-num = <3>;
-	status = "okay";
-};
-
-&switch {
-	status = "disabled";
-};
-
-&ethwarp {
-	compatible = "mediatek,mt7988-ethwarp", "syscon";
-};
-
-&gsw {
-	compatible = "mediatek,mt753x", "mediatek,mt7988-gsw-switch", "syscon";
-	mediatek,sysctrl = <&ethwarp>;
-	mediatek,mdio = <&mdio_bus>;
-	mediatek,portmap = "llllw";
-	mediatek,mdio_master_pinmux = <1>;
-	interrupt-parent = <&gic>;
-	interrupts = <GIC_SPI 209 IRQ_TYPE_LEVEL_HIGH>;
-	status = "okay";
-	port6: port@6 {
-		compatible = "mediatek,mt753x-port";
-		mediatek,ssc-on;
-		phy-mode = "10gbase-kr";
-		reg = <6>;
-		fixed-link {
-			speed = <10000>;
-			full-duplex;
-		};
-	};
-	mdio1: mdio-bus {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		mediatek,pio = <&pio>;
-		gsw_phy0: ethernet-phy@0 {
-			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <0>;
-			phy-mode = "internal";
-			pinctrl-names = "gbe-led";
-			pinctrl-0 = <&gbe0_led0_pins>;
-			nvmem-cells = <&phy_calibration_p0>;
-			nvmem-cell-names = "phy-cal-data";
-			leds {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				gsw_phy0_led0: gsw-phy0-led0@0 {
-					reg = <0>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-				gsw_phy0_led1: gsw-phy0-led1@1 {
-					reg = <1>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-			};
-		};
-		gsw_phy1: ethernet-phy@1 {
-			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <1>;
-			phy-mode = "internal";
-			pinctrl-names = "gbe-led";
-			pinctrl-0 = <&gbe1_led0_pins>;
-			nvmem-cells = <&phy_calibration_p1>;
-			nvmem-cell-names = "phy-cal-data";
-			leds {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				gsw_phy1_led0: gsw-phy1-led0@0 {
-					reg = <0>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-				gsw_phy1_led1: gsw-phy1-led1@1 {
-					reg = <1>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-			};
-		};
-		gsw_phy2: ethernet-phy@2 {
-			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <2>;
-			phy-mode = "internal";
-			pinctrl-names = "gbe-led";
-			pinctrl-0 = <&gbe2_led0_pins>;
-			nvmem-cells = <&phy_calibration_p2>;
-			nvmem-cell-names = "phy-cal-data";
-			leds {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				gsw_phy2_led0: gsw-phy2-led0@0 {
-					reg = <0>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-				gsw_phy2_led1: gsw-phy2-led1@1 {
-					reg = <1>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-			};
-		};
-		gsw_phy3: ethernet-phy@3 {
-			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <3>;
-			phy-mode = "internal";
-			pinctrl-names = "gbe-led";
-			pinctrl-0 = <&gbe3_led0_pins>;
-			nvmem-cells = <&phy_calibration_p3>;
-			nvmem-cell-names = "phy-cal-data";
-			leds {
-				#address-cells = <1>;
-				#size-cells = <0>;
-				gsw_phy3_led0: gsw-phy3-led0@0 {
-					reg = <0>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-				gsw_phy3_led1: gsw-phy3-led1@1 {
-					reg = <1>;
-					function = LED_FUNCTION_LAN;
-					status = "disabled";
-				};
-			};
-		};
-	};
-};
-
-&gsw_phy0 {
-	pinctrl-names = "gbe-led";
-	pinctrl-0 = <&gbe0_led0_pins>;
-};
-
-&gsw_phy0_led0 {
-	status = "okay";
-	color = <LED_COLOR_ID_GREEN>;
-};
-
-&gsw_phy1 {
-	pinctrl-names = "gbe-led";
-	pinctrl-0 = <&gbe1_led0_pins>;
-};
-
-&gsw_phy1_led0 {
-	status = "okay";
-	color = <LED_COLOR_ID_GREEN>;
-};
-
-&gsw_phy2 {
-	pinctrl-names = "gbe-led";
-	pinctrl-0 = <&gbe2_led0_pins>;
-};
-
-&gsw_phy2_led0 {
-	status = "okay";
-	color = <LED_COLOR_ID_GREEN>;
-};
-
-&gsw_phy3 {
-	pinctrl-names = "gbe-led";
-	pinctrl-0 = <&gbe3_led0_pins>;
-};
-
-&gsw_phy3_led0 {
-	status = "okay";
-	color = <LED_COLOR_ID_GREEN>;
 };
