@@ -1,14 +1,14 @@
 --- a/drivers/leds/trigger/ledtrig-netdev.c
 +++ b/drivers/leds/trigger/ledtrig-netdev.c
-@@ -68,7 +68,6 @@
+@@ -54,7 +54,6 @@ struct led_netdev_data {
  	unsigned int last_activity;
  
  	unsigned long mode;
 -	unsigned long blink_delay;
  	int link_speed;
- 	__ETHTOOL_DECLARE_LINK_MODE_MASK(supported_link_modes);
  	u8 duplex;
-@@ -87,10 +86,6 @@
+ 
+@@ -70,10 +69,6 @@ static void set_baseline_state(struct le
  	/* Already validated, hw control is possible with the requested mode */
  	if (trigger_data->hw_control) {
  		led_cdev->hw_control_set(led_cdev, trigger_data->mode);
@@ -19,7 +19,7 @@
  
  		return;
  	}
-@@ -459,11 +454,10 @@
+@@ -415,11 +410,10 @@ static ssize_t interval_store(struct dev
  			      size_t size)
  {
  	struct led_netdev_data *trigger_data = led_trigger_get_drvdata(dev);
@@ -32,7 +32,7 @@
  		return -EINVAL;
  
  	ret = kstrtoul(buf, 0, &value);
-@@ -472,13 +466,8 @@
+@@ -428,13 +422,9 @@ static ssize_t interval_store(struct dev
  
  	/* impose some basic bounds on the timer interval */
  	if (value >= 5 && value <= 10000) {
@@ -40,10 +40,10 @@
 -			trigger_data->blink_delay = value;
 -		} else {
 -			cancel_delayed_work_sync(&trigger_data->work);
--
++		cancel_delayed_work_sync(&trigger_data->work);
+ 
 -			atomic_set(&trigger_data->interval, msecs_to_jiffies(value));
 -		}
-+		cancel_delayed_work_sync(&trigger_data->work);
 +		atomic_set(&trigger_data->interval, msecs_to_jiffies(value));
  		set_baseline_state(trigger_data);	/* resets timer */
  	}
