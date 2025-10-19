@@ -923,8 +923,7 @@ UBOOT_CUSTOMIZE_CONFIG := \
 	--disable TOOLS_KWBIMAGE \
 	--disable TOOLS_LIBCRYPTO \
 	--disable TOOLS_MKEFICAPSULE \
-	--enable SERIAL_RX_BUFFER \
-	--set-val SERIAL_RX_BUFFER_SIZE 256
+	--enable SERIAL_RX_BUFFER
 
 ifdef CONFIG_TARGET_mediatek
 UBOOT_MAKE_FLAGS += $(UBOOT_IMAGE:.fip=.bin)
