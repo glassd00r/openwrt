@@ -1296,8 +1296,9 @@ enum FoeIpAct {
 #define IS_DSA_1G_LAN(dev) (!strncmp(dev->name, "lan", 3) &&		       \
 			    strcmp(dev->name, "lan5"))
 #define IS_DSA_WAN(dev) (!strncmp(dev->name, "wan", 3))
-#define IS_DSA_TAG_PROTO_8021Q(dp)				       \
-	(dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_8021Q)
+#define IS_DSA_TAG_PROTO_8021Q(dp)					\
+	(dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_8021Q ||		\
+	 dp->cpu_dp->tag_ops->proto == DSA_TAG_PROTO_MXL862_8021Q)
 #define NONE_DSA_PORT 0xff
 #define MAX_CRSN_NUM 32
 #define IPV6_HDR_LEN 40
@@ -1312,8 +1313,8 @@ enum FoeIpAct {
 #define UDF_PINGPONG_IFIDX GENMASK(6, 0)
 
 #define HQOS_FLAG(dev, skb, qid)				\
-	((IS_HQOS_UL_MODE && IS_WAN(dev)) ||			\
-	 (IS_HQOS_DL_MODE && IS_LAN_GRP(dev)) ||		\
+	((IS_HQOS_UL_MODE && skb->mark && IS_WAN(dev)) ||			\
+	 (IS_HQOS_DL_MODE && skb->mark && IS_LAN_GRP(dev)) ||		\
 	 (IS_PPPQ_MODE && (IS_PPPQ_PATH(dev, skb) ||		\
 			   qid >= MAX_PPPQ_QUEUE_NUM)))
 
