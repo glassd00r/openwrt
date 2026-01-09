@@ -1918,6 +1918,9 @@ $(eval $(call KernelPackage,usb-roles))
 define KernelPackage/usb-xhci-hcd
   TITLE:=xHCI HCD (USB 3.0) support
   KCONFIG:= CONFIG_USB_XHCI_HCD
+  KCONFIG:= \
+    CONFIG_USB_XHCI_MTK \
+    CONFIG_USB_XHCI_MTK_DEBUGFS=n
   HIDDEN:=1
   FILES:=$(LINUX_DIR)/drivers/usb/host/xhci-hcd.ko
   AUTOLOAD:=$(call AutoLoad,54,xhci-hcd,1)
