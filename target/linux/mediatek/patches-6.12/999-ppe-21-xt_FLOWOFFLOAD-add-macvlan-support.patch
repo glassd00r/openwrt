@@ -39,17 +39,17 @@ index e1a5010..4285a18 100644
  	.ndo_hwtstamp_get	= macvlan_hwtstamp_get,
  	.ndo_hwtstamp_set	= macvlan_hwtstamp_set,
 +	.ndo_fill_forward_path	= macvlan_dev_fill_forward_path,
- };
- 
- static void macvlan_dev_free(struct net_device *dev)
+ #if IS_ENABLED(CONFIG_NF_FLOW_TABLE)
+ 	.ndo_flow_offload_check = macvlan_dev_flow_offload_check,
+ #endif
 diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
 index f49eacd..b49de4d 100644
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
 @@ -836,6 +836,7 @@ enum net_device_path_type {
- 	DEV_PATH_BRIDGE,
- 	DEV_PATH_PPPOE,
  	DEV_PATH_DSA,
+ 	DEV_PATH_DSLITE,
+ 	DEV_PATH_6RD,
 +	DEV_PATH_MACVLAN,
  	DEV_PATH_MTK_WDMA,
  };
