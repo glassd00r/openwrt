@@ -6,7 +6,7 @@
  
 +struct mtk_cpufreq_corr_data mt7988_volt_corr_data[] = {
 +	{
-+		.freq = 1800000000,
++		.freq = 2200000000,
 +		.vbase = 850000,
 +		.vscale = 10000,
 +		.vmax = 1120000,
