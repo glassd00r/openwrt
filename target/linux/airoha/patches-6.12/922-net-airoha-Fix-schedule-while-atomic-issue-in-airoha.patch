@@ -14,11 +14,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/airoha/airoha_ppe.c | 9 ++++++---
  1 file changed, 6 insertions(+), 3 deletions(-)
 
-diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 0caabb0c3aa0..2221bafaf7c9 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
-@@ -1547,13 +1547,16 @@ void airoha_ppe_deinit(struct airoha_eth *eth)
+@@ -1548,13 +1548,16 @@ void airoha_ppe_deinit(struct airoha_eth
  {
  	struct airoha_npu *npu;
  
@@ -38,6 +36,3 @@ index 0caabb0c3aa0..2221bafaf7c9 100644
  
  	rhashtable_destroy(&eth->ppe->l2_flows);
  	rhashtable_destroy(&eth->flow_table);
--- 
-2.52.0
-

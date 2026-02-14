@@ -11,19 +11,17 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/airoha/airoha_npu.c | 6 ++++++
  1 file changed, 6 insertions(+)
 
-diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index 68b7f9684dc7..22f72c146065 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
-@@ -657,6 +657,7 @@ static int airoha_npu_probe(struct platform_device *pdev)
- 	struct resource res;
+@@ -663,6 +663,7 @@ static int airoha_npu_probe(struct platf
+ 	struct device_node *np;
  	void __iomem *base;
  	int i, irq, err;
 +	u32 val;
  
  	base = devm_platform_ioremap_resource(pdev, 0);
  	if (IS_ERR(base))
-@@ -750,6 +751,11 @@ static int airoha_npu_probe(struct platform_device *pdev)
+@@ -762,6 +763,11 @@ static int airoha_npu_probe(struct platf
  	regmap_write(npu->regmap, REG_CR_BOOT_TRIGGER, 0x1);
  	msleep(100);
  
@@ -35,6 +33,3 @@ index 68b7f9684dc7..22f72c146065 100644
  	platform_set_drvdata(pdev, npu);
  
  	return 0;
--- 
-2.52.0
-
