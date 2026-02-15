@@ -241,6 +241,25 @@
 		opp-12000000000 {
 			opp-hz = /bits/ 64 <1200000000>;
 			required-opps = <&smcc_opp14>;
+
+		opp-12500000000 {
+			opp-hz = /bits/ 64 <1250000000>;
+			required-opps = <&smcc_opp15>;
+		};
+
+		opp-13000000000 {
+			opp-hz = /bits/ 64 <1300000000>;
+			required-opps = <&smcc_opp16>;
+		};
+
+		opp-13500000000 {
+			opp-hz = /bits/ 64 <1350000000>;
+			required-opps = <&smcc_opp17>;
+		};
+
+		opp-14000000000 {
+			opp-hz = /bits/ 64 <1400000000>;
+			required-opps = <&smcc_opp18>;
 		};
 	};
 
@@ -305,6 +324,21 @@
 
 		smcc_opp14: opp14 {
 			opp-level = <14>;
+
+		smcc_opp15: opp15 {
+			opp-level = <15>;
+		};
+
+		smcc_opp16: opp15 {
+			opp-level = <16>;
+		};
+
+		smcc_opp17: opp17 {
+			opp-level = <17>;
+		};
+
+		smcc_opp18: opp18 {
+			opp-level = <18>;
 		};
 	};
 
