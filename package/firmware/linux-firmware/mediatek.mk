@@ -107,7 +107,7 @@ define Package/mt7987-2p5g-phy-firmware/install
 endef
 $(eval $(call BuildPackage,mt7987-2p5g-phy-firmware))
 
-Package/mt7988-2p5g-phy-firmware = $(call Package/firmware-default,MT7988 built-in 2.5G Ethernet PHY firmware,,LICENCE.mediatek)
+Package/mt7988-2p5g-phy-firmware = $(call Package/firmware-default,MT7988 built-in 2.5G Ethernet PHY firmware,+LINUX_6_12:kmod-phy-mediatek-2p5g,LICENCE.mediatek)
 define Package/mt7988-2p5g-phy-firmware/install
 	$(INSTALL_DIR) $(1)/lib/firmware/mediatek/mt7988
 	$(INSTALL_DATA) \
