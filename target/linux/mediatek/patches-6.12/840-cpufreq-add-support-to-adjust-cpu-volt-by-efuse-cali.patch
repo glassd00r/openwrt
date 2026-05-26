@@ -62,7 +62,7 @@ Subject: [PATCH 1/2] cpufreq: add support to adjust cpu volt by efuse
 +		return PTR_ERR(buf);
 +
 +	cal_data = buf[0] & 0x1f;
-+	pr_debug("%s: read vbinning value: %d\n", __func__, cal_data);
++	pr_notice("%s: read vbinning value: %d\n", __func__, cal_data);
 +	kfree(buf);
 +	if (!info->soc_data->corr_data) {
 +		pr_err("voltage correction data not found\n");
