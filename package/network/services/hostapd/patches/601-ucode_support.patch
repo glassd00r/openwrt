@@ -68,14 +68,14 @@ as adding/removing interfaces.
  
  extern const char *const wpa_supplicant_version;
  extern const char *const wpa_supplicant_license;
-@@ -697,6 +699,7 @@ struct wpa_supplicant {
+@@ -720,6 +720,7 @@ struct wpa_supplicant {
  	unsigned char own_addr[ETH_ALEN];
  	unsigned char perm_addr[ETH_ALEN];
  	char ifname[100];
 +	struct wpas_ucode_bss ucode;
+ 	u8 hw_dfs_domain;
  #ifdef CONFIG_MATCH_IFACE
  	int matched;
- #endif /* CONFIG_MATCH_IFACE */
 @@ -1564,6 +1567,8 @@ struct wpa_supplicant {
  	unsigned int enabled_4addr_mode:1;
  	unsigned int multi_bss_support:1;
@@ -455,7 +455,7 @@ as adding/removing interfaces.
 +					   ssid->ssid_len,
 +					   (const u8 *) password,
 +					   os_strlen(password),
-+					   NULL);
++					   NULL, 0);
 +			sta->sae_pt = pt;
 +			break;
 +#endif
@@ -654,28 +654,10 @@ as adding/removing interfaces.
  		nl_cb_set(w->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM,
  			  no_seq_check, NULL);
  		nl_cb_set(w->nl_cb, NL_CB_VALID, NL_CB_CUSTOM,
-@@ -1401,7 +1420,7 @@ static void wpa_driver_nl80211_event_rtm
- 		}
- 		wpa_printf(MSG_DEBUG, "nl80211: Interface down (%s/%s)",
- 			   namebuf, ifname);
--		if (os_strcmp(drv->first_bss->ifname, ifname) != 0) {
-+		if (drv->first_bss->ifindex != ifi->ifi_index) {
- 			wpa_printf(MSG_DEBUG,
- 				   "nl80211: Not the main interface (%s) - do not indicate interface down",
- 				   drv->first_bss->ifname);
-@@ -1437,7 +1456,7 @@ static void wpa_driver_nl80211_event_rtm
- 		}
- 		wpa_printf(MSG_DEBUG, "nl80211: Interface up (%s/%s)",
- 			   namebuf, ifname);
--		if (os_strcmp(drv->first_bss->ifname, ifname) != 0) {
-+		if (drv->first_bss->ifindex != ifi->ifi_index) {
- 			wpa_printf(MSG_DEBUG,
- 				   "nl80211: Not the main interface (%s) - do not indicate interface up",
- 				   drv->first_bss->ifname);
-@@ -2130,6 +2149,7 @@ static int wpa_driver_nl80211_init_nl_gl
- 	genl_family_put(family);
- 	nl_cache_free(cache);
- 
+@@ -2233,6 +2249,7 @@ static int wpa_driver_nl80211_init_nl_gl
+ 	/* Needs to be registered early so that process_global_event() calls
+ 	 * the sync reply handler hook.
+ 	 */
 +	nl_cb_set(global->nl_cb, NL_CB_MSG_IN, NL_CB_CUSTOM, debug_handler, NULL);
  	nl_cb_set(global->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM,
  		  no_seq_check, NULL);
@@ -939,10 +921,10 @@ as adding/removing interfaces.
  CFLAGS += -DEAP_SERVER -DEAP_SERVER_IDENTITY
 --- a/wpa_supplicant/events.c
 +++ b/wpa_supplicant/events.c
-@@ -53,6 +53,7 @@
- #include "wmm_ac.h"
- #include "nan_usd.h"
+@@ -54,6 +54,7 @@
  #include "dpp_supplicant.h"
+ #include "pr_supplicant.h"
+ #include "nan_supplicant.h"
 +#include "ucode.h"
  
  
