@@ -8,10 +8,10 @@ This reverts commit 1c994da117ad795766270cf04bc923971e27412f.
 
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -4565,8 +4565,6 @@ int process_global_event(struct nl_msg *
- 			if (wiphy_idx_set)
+@@ -4482,8 +4482,6 @@ int process_global_event(struct nl_msg *
  				wiphy_idx = nl80211_get_wiphy_index(bss);
  			if ((ifidx == -1 && !wiphy_idx_set && !wdev_id_set) ||
+ 			    ifidx == bss->ifindex ||
 -			    (bss->br_ifindex > 0 &&
 -			     nl80211_has_ifidx(drv, bss->br_ifindex, ifidx)) ||
  			    (wiphy_idx_set && wiphy_idx == wiphy_idx_rx) ||
@@ -28,6 +28,15 @@ This reverts commit 1c994da117ad795766270cf04bc923971e27412f.
  
  static int nl80211_set_channel(struct i802_bss *bss,
  			       struct hostapd_freq_params *freq, int set_chan);
+@@ -1270,7 +1272,7 @@ nl80211_find_drv(struct nl80211_global *
+ 				*init_failed = 1;
+ 			return drv;
+ 		}
+-		if (res > 0 || nl80211_has_ifidx(drv, idx, IFIDX_ANY))
++		if (res > 0 || have_ifidx(drv, idx, IFIDX_ANY))
+ 			return drv;
+ 	}
+ 	return NULL;
 @@ -8586,7 +8588,7 @@ static void add_ifidx(struct wpa_driver_
  	wpa_printf(MSG_DEBUG,
  		   "nl80211: Add own interface ifindex %d (ifidx_reason %d)",
