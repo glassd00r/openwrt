@@ -66,15 +66,15 @@ Hotfix-by: Sebastian Gottschall https://github.com/mirror/dd-wrt/commit/0c3001a6
 +		os_strlcpy(bss->apup_peer_ifname_prefix,
 +		           pos, sizeof(bss->apup_peer_ifname_prefix));
 +#endif // def CONFIG_APUP
- 	} else if (os_strcmp(buf, "i2r_lmr_policy") == 0) {
- 		conf->i2r_lmr_policy = atoi(pos);
  	} else {
+ 		wpa_printf(MSG_ERROR,
+ 			   "Line %d: unknown configuration item '%s'",
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1001,6 +1001,35 @@ struct hostapd_bss_config {
- 	unsigned int pmksa_caching_privacy:1;
- 	unsigned int eap_using_authentication_frames:1;
- #endif /* CONFIG_ENC_ASSOC  */
+@@ -984,6 +984,35 @@ struct hostapd_bss_config {
+ 	int mbssid_index;
+ 
+ 	bool spp_amsdu;
 +
 +#ifdef CONFIG_APUP
 +	/**
@@ -235,7 +235,7 @@ Hotfix-by: Sebastian Gottschall https://github.com/mirror/dd-wrt/commit/0c3001a6
 +	            NULL, 0, 0, NULL, NULL, NULL, 0, NULL, 0, NULL,
 +	            sta_ret->flags, 0, 0, 0,
 +	            0, // 0 add, 1 set
-+	            mld_link_addr, mld_link_sta, eml_cap, false);
++	            mld_link_addr, mld_link_sta, eml_cap);
 +
 +	sta_ret->flags |= WLAN_STA_AUTH;
 +	wpa_auth_sm_event(sta_ret->wpa_sm, WPA_AUTH);
@@ -309,7 +309,7 @@ Hotfix-by: Sebastian Gottschall https://github.com/mirror/dd-wrt/commit/0c3001a6
 +	            sta_ret->vht_opmode,
 +	            0, // int supp_p2p_ps
 +	            1, // 0 add, 1 set
-+	            mld_link_addr, mld_link_sta, eml_cap, false);
++	            mld_link_addr, mld_link_sta, eml_cap);
 +
 +	ap_sta_set_authorized(hapd, sta_ret, 1);
 +	hostapd_set_sta_flags(hapd, sta_ret);
@@ -384,14 +384,14 @@ Hotfix-by: Sebastian Gottschall https://github.com/mirror/dd-wrt/commit/0c3001a6
  {
  	/* Supported rates not used in IEEE 802.11ad/DMG */
  	if (hapd->iface->current_mode &&
-@@ -4545,7 +4545,7 @@ static int __check_assoc_ies(struct host
+@@ -4326,7 +4329,7 @@ static int __check_assoc_ies(struct host
  			       elems->ext_capab_len);
  	if (resp != WLAN_STATUS_SUCCESS)
- 		goto out;
+ 		return resp;
 -	resp = copy_supp_rates(hapd, sta, elems);
 +	resp = hostapd_copy_supp_rates(hapd, sta, elems);
  	if (resp != WLAN_STATUS_SUCCESS)
- 		goto out;
+ 		return resp;
  
 @@ -6422,6 +6425,11 @@ static void handle_beacon(struct hostapd
  				      0);
