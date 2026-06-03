@@ -1,0 +1,334 @@
+diff --git a/dma.h b/dma.h
+index ac5ae3ce37..2462c5931f 100644
+--- a/dma.h
++++ b/dma.h
+@@ -76,7 +76,7 @@
+ 
+ #define Q_READ(_q, _field) ({						\
+ 	u32 _offset = offsetof(struct mt76_queue_regs, _field);		\
+-	u32 _val;							\
++	u32 _val = 0;							\
+ 	if ((_q)->flags & MT_QFLAG_NPU) {				\
+ 		struct airoha_npu *npu;					\
+ 									\
+diff --git a/channel.c b/channel.c
+index 5bb739cd07..9c422a0914 100644
+--- a/channel.c
++++ b/channel.c
+@@ -347,7 +347,7 @@ void mt76_put_vif_phy_link(struct mt76_phy *phy, struct ieee80211_vif *vif,
+ 
+ 	rcu_assign_pointer(mvif->offchannel_link, NULL);
+ 	dev->drv->vif_link_remove(phy, vif, &vif->bss_conf, mlink);
+-	kfree(mlink);
++	kfree_rcu(mlink, rcu_head);
+ 
+ 	vif->bss_conf.link_id = 0;
+ }
+diff --git a/tx.c b/tx.c
+index c45ebb2e54..824f34dae7 100644
+--- a/tx.c
++++ b/tx.c
+@@ -964,7 +964,7 @@ mt76_token_release(struct mt76_dev *dev, int token, bool *wake)
+ #endif
+ 	}
+ 
+-	if (dev->token_count < dev->token_size - MT76_TOKEN_FREE_THR &&
++	if (wake && dev->token_count < dev->token_size - MT76_TOKEN_FREE_THR &&
+ 	    dev->phy.q_tx[0]->blocked)
+ 		*wake = true;
+ 
+diff --git a/mt7996/dma.c b/mt7996/dma.c
+index 6e595ef8cd..fa4a04d7f3 100644
+--- a/mt7996/dma.c
++++ b/mt7996/dma.c
+@@ -725,7 +725,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+ 		ret = mt7996_init_tx_queues(&dev->phy, MT_TXQ_ID(0),
+ 					    MT7996_NPU_TX_RING_SIZE,
+ 					    MT_TXQ_RING_BASE(0) + hif1_ofs,
+-					    NULL);
++					    wed);
+ 	else
+ 		ret = mt7996_init_tx_queues(&dev->phy,
+ 					    MT_TXQ_ID(dev->mphy.band_idx),
+diff --git a/mt7996/debugfs.c b/mt7996/debugfs.c
+index f60d4161fb..ac830c628d 100644
+--- a/mt7996/debugfs.c
++++ b/mt7996/debugfs.c
+@@ -111,6 +111,7 @@ static const char * const mt76_wcid_flag_names[] = {
+ 	FLAG(PS),
+ 	FLAG(4ADDR),
+ 	FLAG(HDR_TRANS),
++	FLAG(TDLS_PEER),
+ #undef FLAG
+ };
+ 
+diff --git a/mt76.h b/mt76.h
+index 527bef97e122..07955555f84d 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -420,6 +420,7 @@ enum mt76_wcid_flags {
+ 	MT_WCID_FLAG_PS,
+ 	MT_WCID_FLAG_4ADDR,
+ 	MT_WCID_FLAG_HDR_TRANS,
++	MT_WCID_FLAG_TDLS_PEER,
+ 
+ 	NUM_MT76_WCID_FLAGS,
+ };
+diff --git a/mt76_connac_mcu.c b/mt76_connac_mcu.c
+index 89bd52ea8bf7..f61d0625ef51 100644
+--- a/mt76_connac_mcu.c
++++ b/mt76_connac_mcu.c
+@@ -491,6 +491,11 @@ void mt76_connac_mcu_wtbl_hdr_trans_tlv(struct sk_buff *skb,
+ 		htr->to_ds = true;
+ 		htr->from_ds = true;
+ 	}
++
++	if (test_bit(MT_WCID_FLAG_TDLS_PEER, &wcid->flags)) {
++		htr->to_ds = false;
++		htr->from_ds = false;
++	}
+ }
+ EXPORT_SYMBOL_GPL(mt76_connac_mcu_wtbl_hdr_trans_tlv);
+ 
+diff --git a/mt7915/main.c b/mt7915/main.c
+index e1d83052aa6d..51643a48ed15 100644
+--- a/mt7915/main.c
++++ b/mt7915/main.c
+@@ -760,6 +760,9 @@ int mt7915_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
+ 	msta->wcid.phy_idx = ext_phy;
+ 	msta->jiffies = jiffies;
+ 
++	if (sta->tdls)
++		set_bit(MT_WCID_FLAG_TDLS_PEER, &msta->wcid.flags);
++
+ 	ewma_avg_signal_init(&msta->avg_ack_signal);
+ 
+ 	mt7915_mac_wtbl_update(dev, idx,
+diff --git a/mt7921/main.c b/mt7921/main.c
+index 3d74fabe7408..d39cb881d75e 100644
+--- a/mt7921/main.c
++++ b/mt7921/main.c
+@@ -828,6 +828,9 @@ int mt7921_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
+ 	msta->deflink.last_txs = jiffies;
+ 	msta->deflink.sta = msta;
+ 
++	if (sta->tdls)
++		set_bit(MT_WCID_FLAG_TDLS_PEER, &msta->deflink.wcid.flags);
++
+ 	ret = mt76_connac_pm_wake(&dev->mphy, &dev->pm);
+ 	if (ret)
+ 		return ret;
+diff --git a/mt7925/main.c b/mt7925/main.c
+index 73d3722739d0..61330e3c18b2 100644
+--- a/mt7925/main.c
++++ b/mt7925/main.c
+@@ -887,6 +887,9 @@ static int mt7925_mac_link_sta_add(struct mt76_dev *mdev,
+ 	mlink->wcid.link_valid = !!link_sta->sta->valid_links;
+ 	mlink->sta = msta;
+ 
++	if (link_sta->sta->tdls)
++		set_bit(MT_WCID_FLAG_TDLS_PEER, &mlink->wcid.flags);
++
+ 	wcid = &mlink->wcid;
+ 	ewma_signal_init(&wcid->rssi);
+ 	rcu_assign_pointer(dev->mt76.wcid[wcid->idx], wcid);
+diff --git a/mt7925/mcu.c b/mt7925/mcu.c
+index 22bad3cba8df..333cacfaca9c 100644
+--- a/mt7925/mcu.c
++++ b/mt7925/mcu.c
+@@ -1091,6 +1091,11 @@ mt7925_mcu_sta_hdr_trans_tlv(struct sk_buff *skb,
+ 		hdr_trans->to_ds = true;
+ 		hdr_trans->from_ds = true;
+ 	}
++
++	if (test_bit(MT_WCID_FLAG_TDLS_PEER, &wcid->flags)) {
++		hdr_trans->to_ds = false;
++		hdr_trans->from_ds = false;
++	}
+ }
+ 
+ int mt7925_mcu_wtbl_update_hdr_trans(struct mt792x_dev *dev,
+diff --git a/mt7996/main.c b/mt7996/main.c
+index a8a6552d49f6..9b8db6efb5ac 100644
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1164,6 +1164,9 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
+ 	msta_link->wcid.link_valid = !!sta->valid_links;
+ 	msta_link->wcid.def_wcid = &msta->deflink.wcid;
+ 
++	if (link_sta->sta->tdls)
++		set_bit(MT_WCID_FLAG_TDLS_PEER, &msta_link->wcid.flags);
++
+ 	ewma_avg_signal_init(&msta_link->avg_ack_signal);
+ 	ewma_signal_init(&msta_link->wcid.rssi);
+ 
+diff --git a/mt7996/mcu.c b/mt7996/mcu.c
+index 16420375112d..6aaf3ed94221 100644
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -2139,6 +2139,11 @@ mt7996_mcu_sta_hdr_trans_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
+ 		hdr_trans->from_ds = true;
+ 		hdr_trans->mesh = true;
+ 	}
++
++	if (test_bit(MT_WCID_FLAG_TDLS_PEER, &wcid->flags)) {
++		hdr_trans->to_ds = false;
++		hdr_trans->from_ds = false;
++	}
+ }
+ 
+ static enum mcu_mmps_mode
+@@ -4650,7 +4650,7 @@ mt7996_mcu_beacon_cont(struct mt7996_dev *dev,
+ 
+ 	buf = (u8 *)bcn + sizeof(*bcn);
+ 	mt7996_mac_write_txwi(dev, (__le32 *)buf, skb, wcid, NULL, 0, 0,
+-			      BSS_CHANGED_BEACON);
++			      BSS_CHANGED_BEACON, link_conf->link_id);
+ 
+ 	memcpy(buf + MT_TXD_SIZE, skb->data, skb->len);
+ 
+@@ -5111,7 +5111,8 @@ int mt7996_mcu_beacon_inband_discov(struct mt7996_dev *dev,
+ 
+ 	buf = (u8 *)tlv + sizeof(*discov);
+ 
+-	mt7996_mac_write_txwi(dev, (__le32 *)buf, skb, wcid, NULL, 0, 0, changed);
++	mt7996_mac_write_txwi(dev, (__le32 *)buf, skb, wcid, NULL, 0, 0,
++			      changed, link_conf->link_id);
+ 
+ 	memcpy(buf + MT_TXD_SIZE, skb->data, skb->len);
+ 
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 061ab66ff6..19b0dc9dcc 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -730,6 +730,7 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
+ 	bool multicast = is_multicast_ether_addr(hdr->addr1);
+ 	u8 tid = skb->priority & IEEE80211_QOS_CTL_TID_MASK;
+ 	__le16 fc = hdr->frame_control, sc = hdr->seq_ctrl;
++	struct ieee80211_vif *vif = info->control.vif;
+ 	u16 seqno = le16_to_cpu(sc);
+ 	bool hw_bigtk = false;
+ 	u8 fc_type, fc_stype;
+@@ -795,7 +796,7 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
+ 		txwi[3] |= cpu_to_le32(MT_TXD3_REM_TX_COUNT);
+ 	}
+ 
+-	if (multicast && ieee80211_vif_is_mld(info->control.vif)) {
++	if (multicast && vif && ieee80211_vif_is_mld(vif)) {
+ 		val = MT_TXD3_SN_VALID |
+ 		      FIELD_PREP(MT_TXD3_SEQ, IEEE80211_SEQ_TO_SN(seqno));
+ 		txwi[3] |= cpu_to_le32(val);
+@@ -815,13 +816,13 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
+ 		txwi[3] &= ~cpu_to_le32(MT_TXD3_HW_AMSDU);
+ 	}
+ 
+-	if (ieee80211_vif_is_mld(info->control.vif) &&
++	if (vif && ieee80211_vif_is_mld(vif) &&
+ 	    (multicast || unlikely(skb->protocol == cpu_to_be16(ETH_P_PAE)) ||
+ 	     info->flags & IEEE80211_TX_CTL_INJECTED))
+ 		txwi[5] |= cpu_to_le32(MT_TXD5_FL);
+ 
+ 	if (ieee80211_is_nullfunc(fc) && ieee80211_has_a4(fc) &&
+-	    ieee80211_vif_is_mld(info->control.vif)) {
++	    vif && ieee80211_vif_is_mld(vif)) {
+ 		txwi[5] |= cpu_to_le32(MT_TXD5_FL);
+ 		txwi[6] |= cpu_to_le32(MT_TXD6_DIS_MAT);
+ 	}
+@@ -833,7 +834,8 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
+ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 			   struct sk_buff *skb, struct mt76_wcid *wcid,
+ 			   struct ieee80211_key_conf *key, int pid,
+-			   enum mt76_txq_id qid, u32 changed)
++			   enum mt76_txq_id qid, u32 changed,
++			   unsigned int link_id)
+ {
+ 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+ 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+@@ -843,7 +845,6 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 	bool is_8023 = info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP;
+ 	struct mt76_vif_link *mlink = NULL;
+ 	struct mt7996_vif *mvif;
+-	unsigned int link_id;
+ 	u16 tx_count = 15;
+ 	u32 val;
+ 	bool inband_disc = !!(changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
+@@ -851,17 +852,11 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 	bool beacon = !!(changed & (BSS_CHANGED_BEACON |
+ 				    BSS_CHANGED_BEACON_ENABLED)) && (!inband_disc);
+ 
+-	if (wcid != &dev->mt76.global_wcid)
+-		link_id = wcid->link_id;
+-	else
+-		link_id = u32_get_bits(info->control.flags,
+-				       IEEE80211_TX_CTRL_MLO_LINK);
+-
+ 	mvif = vif ? (struct mt7996_vif *)vif->drv_priv : NULL;
+ 	if (mvif) {
+ 		if (wcid->offchannel)
+ 			mlink = rcu_dereference(mvif->mt76.offchannel_link);
+-		if (!mlink)
++		if (!mlink && link_id != IEEE80211_LINK_UNSPECIFIED)
+ 			mlink = rcu_dereference(mvif->mt76.link[link_id]);
+ 	}
+ 
+@@ -1078,11 +1073,11 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+ 
+ 		link_conf = rcu_dereference(vif->link_conf[wcid->link_id]);
+ 		if (!link_conf)
+-			return -EINVAL;
++			goto error_release_token;
+ 
+ 		link_sta = rcu_dereference(sta->link[wcid->link_id]);
+ 		if (!link_sta)
+-			return -EINVAL;
++			goto error_release_token;
+ 
+ 		dma_sync_single_for_cpu(mdev->dma_dev, tx_info->buf[1].addr,
+ 					tx_info->buf[1].len, DMA_TO_DEVICE);
+@@ -1107,7 +1102,7 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+ 	/* Transmit non qos data by 802.11 header and need to fill txd by host*/
+ 	if (!is_8023 || pid >= MT_PACKET_ID_FIRST)
+ 		mt7996_mac_write_txwi(dev, txwi_ptr, tx_info->skb, wcid, key,
+-				      pid, qid, 0);
++				      pid, qid, 0, link_id);
+ 
+ 	/* MT7996 and MT7992 require driver to provide the MAC TXP for AddBA
+ 	 * req
+@@ -1189,6 +1184,10 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+ 	mt7996_packet_log_to_host(dev, t->skb->data, t->skb->len, PKT_BIN_DEBUG_TX, 0);
+ 
+ 	return 0;
++
++error_release_token:
++	mt76_token_release(mdev, id, NULL);
++	return -EINVAL;
+ }
+ 
+ u32 mt7996_wed_init_buf(void *ptr, dma_addr_t phys, int token_id)
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+index dcf2e5b8ed..014ff45f81 100644
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -1488,7 +1488,8 @@ void mt7996_mac_enable_nf(struct mt7996_dev *dev, u8 band);
+ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 			   struct sk_buff *skb, struct mt76_wcid *wcid,
+ 			   struct ieee80211_key_conf *key, int pid,
+-			   enum mt76_txq_id qid, u32 changed);
++			   enum mt76_txq_id qid, u32 changed,
++			   unsigned int link_id);
+ void mt7996_mac_update_beacons(struct mt7996_phy *phy);
+ void mt7996_mac_set_coverage_class(struct mt7996_phy *phy);
+ void mt7996_mac_work(struct work_struct *work);
+diff --git a/mt7996/pci.c b/mt7996/pci.c
+index c175eeb54d..0e87cc4054 100644
+--- a/mt7996/pci.c
++++ b/mt7996/pci.c
+@@ -170,7 +170,7 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
+ 	dev->hif2 = hif2;
+ 
+ 	mt76_npu_init(mdev, pci_resource_start(pdev, 0),
+-		      pdev->bus && pci_domain_nr(pdev->bus) ? 3 : 2);
++		      pci_domain_nr(pdev->bus) ? 3 : 2);
+ 
+ 	ret = mt7996_mmio_wed_init(dev, pdev, false, &irq);
+ 	if (ret < 0)
