@@ -106,6 +106,7 @@ MT7988()
 	eth_irq_rx2=223
 	eth_irq_rx3=224
 	eth_irq_tx=229
+	wed_irq_tx=237
 	wifi1_irq_pcie0=524288
 	wifi1_irq_pcie1=134742016
 	wifi2_irq_pcie0=
@@ -133,219 +134,17 @@ MT7988()
 	# Please update the CPU binding in each cases.
 	# CPU#_AFFINITY="add binding irq number here"
 	# CPU#_RPS="add binding interface name here"
-	if [ "$num_of_wifi" = "0" ]; then
-		CPU0_AFFINITY="$eth_irq_rx0 $eth_irq_tx"
-		CPU1_AFFINITY="$eth_irq_rx1"
-		CPU2_AFFINITY="$eth_irq_rx2"
-		CPU3_AFFINITY="$eth_irq_rx3"
+	#we bound all wifi card to cpu0 and bound eth to cpu
+	CPU0_AFFINITY=""
+	CPU1_AFFINITY="$wed_irq_tx"
+	CPU2_AFFINITY="$eth_irq_rx0 $eth_irq_rx1 $eth_irq_rx2 $eth_irq_rx3 $eth_irq_tx"
 
-		CPU0_RPS="$RPS_IF_LIST"
-		CPU1_RPS="$RPS_IF_LIST"
-		CPU2_RPS="$RPS_IF_LIST"
-		CPU3_RPS="$RPS_IF_LIST"
-	else
-		#we bound all wifi card to cpu0 and bound eth to cpu
-		CPU0_AFFINITY=""
-		CPU1_AFFINITY="$eth_irq_rx2 $eth_irq_rx3"
-		CPU2_AFFINITY="$eth_irq_rx0 $eth_irq_rx1 $eth_irq_tx"
-
-		CPU0_RPS="$WIFI_IF_LIST"
-		CPU1_RPS="$WIFI_IF_LIST"
-		CPU2_RPS=""
-		CPU3_RPS=""
-	fi
+	CPU0_RPS="$WIFI_IF_LIST"
+	CPU1_RPS="$WIFI_IF_LIST"
+	CPU2_RPS=""
 	dbg2 "CPU0_AFFINITY = $CPU0_AFFINITY"
 	dbg2 "CPU1_AFFINITY = $CPU1_AFFINITY"
 	dbg2 "CPU2_AFFINITY = $CPU2_AFFINITY"
-}
-
-MT7986()
-{
-	num_of_wifi=$1
-	DEFAULT_RPS=0
-
-	#Physical IRQ# setting
-	#Ethernet RSS feature enables 4 Rx rings
-	eth_irq_rx0=221
-	eth_irq_rx1=222
-	eth_irq_rx2=223
-	eth_irq_rx3=224
-	eth_irq_tx=229
-	wifi1_irq=
-	wifi2_irq=
-	wifi3_irq=
-
-	if [[ "$WED_ENABLE" -eq "1" ]]; then
-		if [[ "$NFT_ENABLE" -eq "1" ]]; then
-			dbg2 "WED_ENABLE ON irq/nftables setting"
-			nftables_flowoffload_enable "$HW_OFFLOAD"
-		else
-			dbg2 "WED_ENABLE ON irq/iptables setting"
-			iptables_flowoffload_enable "$HW_OFFLOAD"
-		fi
-
-		#AX6000 AX7800 - SOC
-		if [[ "$WIFI_RADIO1" -eq "1" ]]; then
-			wifi1_irq=238
-		fi
-		#AX7800 - PCIE0
-		if [[ "$WIFI_RADIO2" -eq "1" ]]; then
-			wifi2_irq=237
-		fi
-		#AX7800 - PCIE1
-		#if [[ "$WIFI_RADIO3" -eq "1" ]]; then
-		#	wifi3_irq=239
-		#fi
-	else
-		dbg2 "WED_ENABLE OFF irq/iptable seting"
-		#AX6000 AX7800 - SOC
-		if [[ "$WIFI_RADIO1" -eq "1" ]]; then
-			wifi1_irq=245
-		fi
-		#AX7800 - PCIE0
-		if [[ "$WIFI_RADIO2" -eq "1" ]]; then
-			wifi2_irq=246
-		fi
-		#AX7800 - PCIE1
-		#if [[ "$WIFI_RADIO3" -eq "1" ]]; then
-		#	wifi3_irq=247
-		#fi
-	fi
-
-	for vif in $NET_IF_LIST;
-	do
-		if [[ "$vif" == "wlan"* ]] || [[ "$vif" == "phy"* ]]; then
-			WIFI_IF_LIST="$WIFI_IF_LIST $vif"
-		fi
-	done;
-	dbg2 "$WIFI_IF_LIST = $WIFI_IF_LIST"
-	# Please update the CPU binding in each cases.
-	# CPU#_AFFINITY="add binding irq number here"
-	# CPU#_RPS="add binding interface name here"
-	if [ "$num_of_wifi" = "0" ]; then
-		CPU0_AFFINITY="$eth_irq_rx0"
-		CPU1_AFFINITY="$eth_irq_rx1 $eth_irq_tx"
-		CPU2_AFFINITY="$eth_irq_rx2"
-		CPU3_AFFINITY="$eth_irq_rx3"
-
-		CPU0_RPS=""
-		CPU1_RPS=""
-		CPU2_RPS=""
-		CPU3_RPS=""
-	else
-		#we bound all wifi card to cpu1 and bound eth to cpu0
-		CPU0_AFFINITY="$eth_irq_rx0"
-		CPU1_AFFINITY="$eth_irq_rx1 $eth_irq_tx"
-		CPU2_AFFINITY="$eth_irq_rx2 $wifi2_irq $wifi3_irq"
-		CPU3_AFFINITY="$eth_irq_rx3 $wifi1_irq"
-
-		CPU0_RPS="$WIFI_IF_LIST"
-		CPU1_RPS="$WIFI_IF_LIST"
-		CPU2_RPS="$WIFI_IF_LIST"
-		CPU3_RPS="$WIFI_IF_LIST"
-	fi
-	dbg2 "CPU0_AFFINITY = $CPU0_AFFINITY"
-	dbg2 "CPU1_AFFINITY = $CPU1_AFFINITY"
-	dbg2 "CPU2_AFFINITY = $CPU2_AFFINITY"
-	dbg2 "CPU3_AFFINITY = $CPU3_AFFINITY"
-}
-
-MT7981()
-{
-	num_of_wifi=$1
-	DEFAULT_RPS=0
-
-	#Physical IRQ# setting
-	eth_irq_rx=221
-	eth_irq_tx=229
-	wifi1_irq=
-	wifi2_irq=
-	wifi3_irq=
-
-	#AX3000
-	if [[ "$WED_ENABLE" -eq "1" ]]; then
-		if [[ "$NFT_ENABLE" -eq "1" ]]; then
-			dbg2 "WED_ENABLE ON irq/nftables setting"
-			nftables_flowoffload_enable "$HW_OFFLOAD"
-		else
-			dbg2 "WED_ENABLE ON irq/iptables setting"
-			iptables_flowoffload_enable "$HW_OFFLOAD"
-		fi
-
-		if [[ "$WIFI_RADIO1" -eq "1" ]]; then
-			wifi1_irq=237
-		fi
-	else
-		if [[ "$WIFI_RADIO1" -eq "1" ]]; then
-			wifi1_irq=245
-		fi
-	fi
-
-	# Please update the CPU binding in each cases.
-	# CPU#_AFFINITY="add binding irq number here"
-	# CPU#_RPS="add binding interface name here"
-	if [ "$num_of_wifi" = "0" ]; then
-		CPU0_AFFINITY="$eth_irq_rx"
-		CPU1_AFFINITY="$eth_irq_tx"
-
-		CPU0_RPS="$RPS_IF_LIST"
-		CPU1_RPS="$RPS_IF_LIST"
-	else
-		#we bound all wifi card to cpu0 and bound eth to cpu1
-		CPU0_AFFINITY="$wifi1_irq $wifi2_irq $wifi3_irq"
-		CPU1_AFFINITY="$eth_irq_rx $eth_irq_tx"
-
-		CPU0_RPS="$RPS_IF_LIST"
-		CPU1_RPS="$RPS_IF_LIST"
-	fi
-	dbg2 "CPU0_AFFINITY = $CPU0_AFFINITY"
-	dbg2 "CPU1_AFFINITY = $CPU1_AFFINITY"
-}
-
-MT7622()
-{
-	num_of_wifi=$1
-	DEFAULT_RPS=0
-
-	#Physical IRQ# setting
-	eth0_irq=224
-	eth1_irq=225
-	wifi1_irq=
-	wifi2_irq=
-	wifi3_irq=
-	#AX1200 AX3200
-	if [[ "$WIFI_RADIO1" -eq "1" ]]; then
-		wifi1_irq=211
-	fi
-	#AX1800 AX3200
-	if [[ "$WIFI_RADIO2" -eq "1" ]]; then
-		wifi2_irq=214
-	fi
-	#AX3600
-	if [[ "$WIFI_RADIO3" -eq "1" ]]; then
-		wifi3_irq=215
-	fi
-
-	# Please update the CPU binding in each cases.
-	# CPU#_AFFINITY="add binding irq number here"
-	# CPU#_RPS="add binding interface name here"
-	if [ "$num_of_wifi" == "0" ]; then
-		CPU0_AFFINITY="$eth0_irq"
-		CPU1_AFFINITY="$eth1_irq"
-
-		CPU0_RPS="$RPS_IF_LIST"
-		CPU1_RPS="$RPS_IF_LIST"
-	else
-		#we bound all wifi card to cpu0 and bound eth to cpu1
-		CPU0_AFFINITY="$wifi1_irq $wifi2_irq $wifi3_irq"
-		CPU1_AFFINITY="$eth0_irq $eth1_irq"
-
-		CPU0_RPS="$RPS_IF_LIST"
-		CPU1_RPS="$RPS_IF_LIST"
-	fi
-
-	dbg2 "CPU0_AFFINITY = $CPU0_AFFINITY"
-	dbg2 "CPU1_AFFINITY = $CPU1_AFFINITY"
 }
 
 setup_model()
