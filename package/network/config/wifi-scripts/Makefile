@@ -47,6 +47,8 @@ define Package/wifi-scripts/install
 	$(CP) ./files/* $(1)/
 ifeq ($(CONFIG_WIFI_SCRIPTS_UCODE),y)
 	$(CP) ./files-ucode/* $(1)/
+	$(INSTALL_BIN) ./files-ucode/lib/netifd/wireless/mac80211.sh \
+		$(1)/lib/netifd/wireless/mac80211.sh
 endif
 endef
 
