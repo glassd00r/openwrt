@@ -101,7 +101,7 @@ function setup_phy(phy, config, data) {
 	log(`Configuring '${phy}' txantenna: ${config.txantenna}, rxantenna: ${config.rxantenna} distance: ${config.distance}`);
 	system(`iw phy ${phy} set antenna ${config.txantenna} ${config.rxantenna}`);
 	system(`iw phy ${phy} set distance ${config.distance}`);
-	system(`iw phy ${phy} set txpower ${config.txpower}`);
+	system(`iw phy ${phy} set txpower ${config.txpower} radio ${config.radio}`);
 
 	if (config.frag)
 		system(`iw phy ${phy} set frag ${config.frag}`);
@@ -308,6 +308,9 @@ function setup() {
 		supplicant.start(data);
 
 	netifd.set_up();
+
+	log(`Setup SMP Affinity`);
+	system(`/bin/sh /sbin/smp-mt76.sh`);
 
 	return 0
 }
