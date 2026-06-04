@@ -309,9 +309,10 @@ function setup() {
 
 	netifd.set_up();
 	
+	log(`Setup SMP Affinity`);
 	system(`/bin/sh /sbin/smp-mt76.sh`);	
 
-	return 0;
+	return 0
 }
 
 function teardown() {
