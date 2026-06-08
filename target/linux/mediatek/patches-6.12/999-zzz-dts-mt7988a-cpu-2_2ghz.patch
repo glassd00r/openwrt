@@ -7,8 +7,8 @@ Overclock MT7988 to 2Ghz
  				opp-hz = /bits/ 64 <1800000000>;
  				opp-microvolt = <900000>;
  			};
-+			opp-2000000000 {
-+				opp-hz = /bits/ 64 <2000000000>;
++			opp-2200000000 {
++				opp-hz = /bits/ 64 <2200000000>;
 +				opp-microvolt = <900000>;
 +			};
  		};
