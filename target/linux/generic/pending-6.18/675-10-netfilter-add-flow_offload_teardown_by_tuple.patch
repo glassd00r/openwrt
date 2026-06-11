@@ -1,0 +1,50 @@
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Subject: [PATCH] netfilter: flowtable: add flow_offload_teardown_by_tuple
+
+Allow drivers (e.g. mtk_ppe roaming handler) to tear down offloaded flows
+matching a given tuple.
+
+Ported from mtk-openwrt-feeds 999-ppe-07 (core helper only).
+---
+--- a/include/net/netfilter/nf_flow_table.h
++++ b/include/net/netfilter/nf_flow_table.h
+@@ -294,6 +294,7 @@
+ void nf_flow_table_free(struct nf_flowtable *flow_table);
+ 
+ void flow_offload_teardown(struct flow_offload *flow);
++void flow_offload_teardown_by_tuple(struct flow_offload_tuple *tuple);
+ 
+ int nf_flow_table_iterate(struct nf_flowtable *flow_table,
+ 			  void (*iter)(struct nf_flowtable *flowtable,
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -347,6 +347,29 @@
+ }
+ EXPORT_SYMBOL_GPL(flow_offload_teardown);
+ 
++void flow_offload_teardown_by_tuple(struct flow_offload_tuple *tuple)
++{
++	struct net_device *netdev;
++	struct nf_flowtable *flowtable;
++	struct flow_offload_tuple_rhash *tuplehash;
++	struct flow_offload *flow;
++	int dir;
++
++	list_for_each_entry(flowtable, &flowtables, list) {
++		for_each_netdev(&init_net, netdev) {
++			tuple->iifidx = netdev->ifindex;
++			tuplehash = flow_offload_lookup(flowtable, tuple);
++			if (!tuplehash)
++				continue;
++
++			dir = tuplehash->tuple.dir;
++			flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
++			flow_offload_teardown(flow);
++		}
++	}
++}
++EXPORT_SYMBOL_GPL(flow_offload_teardown_by_tuple);
++
+ struct flow_offload_tuple_rhash *
+ flow_offload_lookup(struct nf_flowtable *flow_table,
+ 		    struct flow_offload_tuple *tuple)

@@ -1,0 +1,488 @@
+From: Bo-Cun Chen <bc-bocun.chen@mediatek.com>
+Subject: [PATCH] netfilter: add nf_conntrack_qos and DSCP learning for flow offload
+
+Learn DSCP/TOS over bidirectional packets before hardware flow bind.
+Enable via: echo N > /proc/sys/net/netfilter/nf_conntrack_qos
+
+Combines mtk-openwrt-feeds 999-ppe-05 (nf_conntrack_qos), 999-ppe-17
+(nft_flow_offload learning), 999-ppe-37 (TCP thoff fix), with flowtable
+DSCP offload from Lorenzo 915-01.
+
+---
+--- a/include/net/netfilter/nf_flow_table.h
++++ b/include/net/netfilter/nf_flow_table.h
+@@ -29,6 +29,7 @@ struct nf_flow_key {
+ 		struct flow_dissector_key_ipv4_addrs	ipv4;
+ 		struct flow_dissector_key_ipv6_addrs	ipv6;
+ 	};
++	struct flow_dissector_key_ip			ip;
+ 	struct flow_dissector_key_keyid			enc_key_id;
+ 	union {
+ 		struct flow_dissector_key_ipv4_addrs	enc_ipv4;
+@@ -138,6 +139,7 @@ struct flow_offload_tuple {
+ 					encap_num:2,
+ 					in_vlan_ingress:2;
+ 	u16				mtu;
++	u8				dscp;
+ 	union {
+ 		struct {
+ 			struct dst_entry *dst_cache;
+--- a/net/netfilter/nf_flow_table_ip.c
++++ b/net/netfilter/nf_flow_table_ip.c
+@@ -376,6 +376,7 @@ static int nf_flow_offload_forward(struc
+ 	struct flow_offload *flow;
+ 	unsigned int thoff, mtu;
+ 	struct iphdr *iph;
++	u8 dscp;
+ 
+ 	dir = tuplehash->tuple.dir;
+ 	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
+@@ -405,6 +406,12 @@ static int nf_flow_offload_forward(struc
+ 	iph = ip_hdr(skb);
+ 	nf_flow_nat_ip(flow, skb, thoff, dir, iph);
+ 
++	dscp = FIELD_GET(INET_DSCP_MASK, ipv4_get_dsfield(iph));
++	if (tuplehash->tuple.dscp != dscp)
++		ipv4_change_dsfield(iph, INET_ECN_MASK,
++				    FIELD_PREP(INET_DSCP_MASK,
++					       tuplehash->tuple.dscp));
++
+ 	ip_decrease_ttl(iph);
+ 	skb_clear_tstamp(skb);
+ 
+@@ -655,6 +662,7 @@ static int nf_flow_offload_ipv6_forward(
+ 	struct flow_offload *flow;
+ 	unsigned int thoff, mtu;
+ 	struct ipv6hdr *ip6h;
++	u8 dscp;
+ 
+ 	dir = tuplehash->tuple.dir;
+ 	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
+@@ -683,6 +691,12 @@ static int nf_flow_offload_ipv6_forward(
+ 	ip6h = ipv6_hdr(skb);
+ 	nf_flow_nat_ipv6(flow, skb, dir, ip6h);
+ 
++	dscp = FIELD_GET(INET_DSCP_MASK, ipv6_get_dsfield(ip6h));
++	if (tuplehash->tuple.dscp != dscp)
++		ipv6_change_dsfield(ip6h, INET_ECN_MASK,
++				    FIELD_PREP(INET_DSCP_MASK,
++					       tuplehash->tuple.dscp));
++
+ 	ip6h->hop_limit--;
+ 	skb_clear_tstamp(skb);
+ 
+--- a/net/netfilter/nf_flow_table_offload.c
++++ b/net/netfilter/nf_flow_table_offload.c
+@@ -103,6 +103,7 @@ static int nf_flow_rule_match(struct nf_
+ 	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_BASIC, basic);
+ 	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV4_ADDRS, ipv4);
+ 	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV6_ADDRS, ipv6);
++	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IP, ip);
+ 	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_TCP, tcp);
+ 	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_PORTS, tp);
+ 
+@@ -168,6 +169,10 @@ static int nf_flow_rule_match(struct nf_
+ 	match->dissector.used_keys |= BIT_ULL(key->control.addr_type);
+ 	mask->basic.n_proto = 0xffff;
+ 
++	key->ip.tos = FIELD_PREP(INET_DSCP_MASK, tuple->dscp);
++	mask->ip.tos = 0xff;
++	match->dissector.used_keys |= BIT_ULL(FLOW_DISSECTOR_KEY_IP);
++
+ 	switch (tuple->l4proto) {
+ 	case IPPROTO_TCP:
+ 		key->tcp.flags = 0;
+--- a/include/net/netfilter/nf_conntrack_extend.h
++++ b/include/net/netfilter/nf_conntrack_extend.h
+@@ -13,6 +13,7 @@ enum nf_ct_ext_id {
+ #endif
+ 	NF_CT_EXT_SEQADJ,
+ 	NF_CT_EXT_ACCT,
++	NF_CT_EXT_QOS,
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	NF_CT_EXT_ECACHE,
+ #endif
+--- /dev/null
++++ b/include/net/netfilter/nf_conntrack_qos.h
+@@ -0,0 +1,64 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (C) 2025 MediaTek Inc.
++ */
++
++#ifndef _NF_CONNTRACK_QOS_H
++#define _NF_CONNTRACK_QOS_H
++#include <net/net_namespace.h>
++#include <linux/netfilter/nf_conntrack_common.h>
++#include <linux/netfilter/nf_conntrack_tuple_common.h>
++#include <net/netfilter/nf_conntrack.h>
++#include <net/netfilter/nf_conntrack_extend.h>
++
++struct nf_conn_tos {
++	u8		value;
++	atomic64_t	counter;
++};
++
++struct nf_conn_qos {
++	struct nf_conn_tos	tos[IP_CT_DIR_MAX];
++};
++
++static inline
++struct nf_conn_qos *nf_conn_qos_find(const struct nf_conn *ct)
++{
++	return nf_ct_ext_find(ct, NF_CT_EXT_QOS);
++}
++
++static inline
++struct nf_conn_qos *nf_ct_qos_ext_add(struct nf_conn *ct, gfp_t gfp)
++{
++#if IS_ENABLED(CONFIG_NF_CONNTRACK)
++	struct net *net = nf_ct_net(ct);
++	struct nf_conn_qos *qos;
++
++	if (!net->ct.sysctl_qos)
++		return NULL;
++
++	qos = nf_ct_ext_add(ct, NF_CT_EXT_QOS, gfp);
++	if (!qos)
++		pr_debug("failed to add qos extension area");
++
++	memset(qos, 0, sizeof(struct nf_conn_qos));
++
++	return qos;
++#else
++	return NULL;
++#endif
++}
++
++static inline void nf_ct_qos_clear(struct nf_conn *ct)
++{
++#if IS_ENABLED(CONFIG_NF_CONNTRACK)
++	struct nf_conn_qos *qos;
++
++	qos = nf_ct_ext_find(ct, NF_CT_EXT_QOS);
++	if (qos)
++		memset(qos, 0, sizeof(struct nf_conn_qos));
++#endif
++}
++
++void nf_conntrack_qos_pernet_init(struct net *net);
++
++#endif /* _NF_CONNTRACK_QOS_H */
+--- a/include/net/netns/conntrack.h
++++ b/include/net/netns/conntrack.h
+@@ -100,6 +100,7 @@ struct netns_ct {
+ 	u8			sysctl_log_invalid; /* Log invalid packets */
+ 	u8			sysctl_events;
+ 	u8			sysctl_acct;
++	u8			sysctl_qos;
+ 	u8			sysctl_tstamp;
+ 	u8			sysctl_checksum;
+ 
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -4,7 +4,7 @@ netfilter-objs := core.o nf_log.o nf_que
+ nf_conntrack-y	:= nf_conntrack_core.o nf_conntrack_standalone.o nf_conntrack_expect.o nf_conntrack_helper.o \
+ 		   nf_conntrack_proto.o nf_conntrack_proto_generic.o nf_conntrack_proto_tcp.o nf_conntrack_proto_udp.o \
+ 		   nf_conntrack_proto_icmp.o \
+-		   nf_conntrack_extend.o nf_conntrack_acct.o nf_conntrack_seqadj.o
++		   nf_conntrack_extend.o nf_conntrack_acct.o nf_conntrack_qos.o nf_conntrack_seqadj.o
+ 
+ nf_conntrack-$(subst m,y,$(CONFIG_IPV6)) += nf_conntrack_proto_icmpv6.o
+ nf_conntrack-$(CONFIG_NF_CONNTRACK_TIMEOUT) += nf_conntrack_timeout.o
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -41,6 +41,7 @@
+ #include <net/netfilter/nf_conntrack_core.h>
+ #include <net/netfilter/nf_conntrack_extend.h>
+ #include <net/netfilter/nf_conntrack_acct.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include <net/netfilter/nf_conntrack_ecache.h>
+ #include <net/netfilter/nf_conntrack_zones.h>
+ #include <net/netfilter/nf_conntrack_timestamp.h>
+@@ -1796,6 +1797,7 @@ init_conntrack(struct net *net, struct n
+ 				      GFP_ATOMIC);
+ 
+ 	nf_ct_acct_ext_add(ct, GFP_ATOMIC);
++	nf_ct_qos_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_tstamp_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_labels_ext_add(ct);
+ 
+@@ -2763,6 +2765,7 @@ int nf_conntrack_init_net(struct net *ne
+ 		goto err_expect;
+ 
+ 	nf_conntrack_acct_pernet_init(net);
++	nf_conntrack_qos_pernet_init(net);
+ 	nf_conntrack_tstamp_pernet_init(net);
+ 	nf_conntrack_ecache_pernet_init(net);
+ 	nf_conntrack_proto_pernet_init(net);
+--- a/net/netfilter/nf_conntrack_extend.c
++++ b/net/netfilter/nf_conntrack_extend.c
+@@ -23,6 +23,7 @@
+ #include <net/netfilter/nf_conntrack_labels.h>
+ #include <net/netfilter/nf_conntrack_synproxy.h>
+ #include <net/netfilter/nf_conntrack_act_ct.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include <net/netfilter/nf_nat.h>
+ 
+ #define NF_CT_EXT_PREALLOC	128u /* conntrack events are on by default */
+@@ -36,6 +37,7 @@ static const u8 nf_ct_ext_type_len[NF_CT
+ #endif
+ 	[NF_CT_EXT_SEQADJ] = sizeof(struct nf_conn_seqadj),
+ 	[NF_CT_EXT_ACCT] = sizeof(struct nf_conn_acct),
++	[NF_CT_EXT_QOS] = sizeof(struct nf_conn_qos),
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	[NF_CT_EXT_ECACHE] = sizeof(struct nf_conntrack_ecache),
+ #endif
+--- a/net/netfilter/nf_conntrack_netlink.c
++++ b/net/netfilter/nf_conntrack_netlink.c
+@@ -42,6 +42,7 @@
+ #include <net/netfilter/nf_conntrack_l4proto.h>
+ #include <net/netfilter/nf_conntrack_tuple.h>
+ #include <net/netfilter/nf_conntrack_acct.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include <net/netfilter/nf_conntrack_zones.h>
+ #include <net/netfilter/nf_conntrack_timestamp.h>
+ #include <net/netfilter/nf_conntrack_labels.h>
+@@ -2305,6 +2306,7 @@ ctnetlink_create_conntrack(struct net *n
+ 		goto err2;
+ 
+ 	nf_ct_acct_ext_add(ct, GFP_ATOMIC);
++	nf_ct_qos_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_tstamp_ext_add(ct, GFP_ATOMIC);
+ 	nf_ct_ecache_ext_add(ct, 0, 0, GFP_ATOMIC);
+ 	nf_ct_labels_ext_add(ct);
+--- /dev/null
++++ b/net/netfilter/nf_conntrack_qos.c
+@@ -0,0 +1,29 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2025 MediaTek Inc.
++ */
++
++/* QoS handling for netfilter. */
++
++#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
++
++#include <linux/netfilter.h>
++#include <linux/slab.h>
++#include <linux/kernel.h>
++#include <linux/moduleparam.h>
++#include <linux/export.h>
++
++#include <net/netfilter/nf_conntrack.h>
++#include <net/netfilter/nf_conntrack_extend.h>
++#include <net/netfilter/nf_conntrack_qos.h>
++
++static unsigned short nf_ct_qos __read_mostly = 3;
++
++module_param_named(qos, nf_ct_qos, ushort, 0644);
++MODULE_PARM_DESC(qos, "Enable connection tracking qos.");
++
++void nf_conntrack_qos_pernet_init(struct net *net)
++{
++	net->ct.sysctl_qos = nf_ct_qos;
++}
++
+--- a/net/netfilter/nf_conntrack_standalone.c
++++ b/net/netfilter/nf_conntrack_standalone.c
+@@ -20,6 +20,7 @@
+ #include <net/netfilter/nf_conntrack_expect.h>
+ #include <net/netfilter/nf_conntrack_helper.h>
+ #include <net/netfilter/nf_conntrack_acct.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include <net/netfilter/nf_conntrack_zones.h>
+ #include <net/netfilter/nf_conntrack_timestamp.h>
+ #include <linux/rculist_nulls.h>
+@@ -291,6 +292,18 @@ seq_print_acct(struct seq_file *s, const
+ 		   (unsigned long long)atomic64_read(&counter[dir].bytes));
+ }
+ 
++static void
++seq_print_qos(struct seq_file *s, const struct nf_conn *ct, int dir)
++{
++	struct nf_conn_qos *qos;
++
++	qos = nf_conn_qos_find(ct);
++	if (!qos)
++		return;
++
++	seq_printf(s, "tos=%u ", qos->tos[dir].value);
++}
++
+ /* return 0 on success, 1 in case of error */
+ static int ct_seq_show(struct seq_file *s, void *v)
+ {
+@@ -342,6 +355,8 @@ static int ct_seq_show(struct seq_file *
+ 
+ 	seq_print_acct(s, ct, IP_CT_DIR_ORIGINAL);
+ 
++	seq_print_qos(s, ct, IP_CT_DIR_ORIGINAL);
++
+ 	if (!(test_bit(IPS_SEEN_REPLY_BIT, &ct->status)))
+ 		seq_puts(s, "[UNREPLIED] ");
+ 
+@@ -351,6 +366,8 @@ static int ct_seq_show(struct seq_file *
+ 
+ 	seq_print_acct(s, ct, IP_CT_DIR_REPLY);
+ 
++	seq_print_qos(s, ct, IP_CT_DIR_REPLY);
++
+ 	if (test_bit(IPS_HW_OFFLOAD_BIT, &ct->status))
+ 		seq_puts(s, "[HW_OFFLOAD] ");
+ 	else if (test_bit(IPS_OFFLOAD_BIT, &ct->status))
+@@ -557,6 +574,7 @@ enum nf_ct_sysctl_index {
+ 	NF_SYSCTL_CT_LOG_INVALID,
+ 	NF_SYSCTL_CT_EXPECT_MAX,
+ 	NF_SYSCTL_CT_ACCT,
++	NF_SYSCTL_CT_QOS,
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	NF_SYSCTL_CT_EVENTS,
+ #endif
+@@ -674,6 +692,15 @@ static struct ctl_table nf_ct_sysctl_tab
+ 		.extra1 	= SYSCTL_ZERO,
+ 		.extra2 	= SYSCTL_ONE,
+ 	},
++	[NF_SYSCTL_CT_QOS] = {
++		.procname	= "nf_conntrack_qos",
++		.data		= &init_net.ct.sysctl_qos,
++		.maxlen		= sizeof(u8),
++		.mode		= 0644,
++		.proc_handler	= proc_dou8vec_minmax,
++		.extra1 	= SYSCTL_ZERO,
++		.extra2 	= SYSCTL_TWO_HUNDRED,
++	},
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	[NF_SYSCTL_CT_EVENTS] = {
+ 		.procname	= "nf_conntrack_events",
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -9,6 +9,7 @@
+ #include <net/ip6_route.h>
+ #include <net/netfilter/nf_flow_table.h>
+ #include <net/netfilter/nf_conntrack.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include <net/netfilter/nf_conntrack_core.h>
+ #include <net/netfilter/nf_conntrack_l4proto.h>
+ #include <net/netfilter/nf_conntrack_tuple.h>
+@@ -341,6 +342,7 @@ static void flow_offload_del(struct nf_f
+ 
+ void flow_offload_teardown(struct flow_offload *flow)
+ {
++	nf_ct_qos_clear(flow->ct);
+ 	clear_bit(IPS_OFFLOAD_BIT, &flow->ct->status);
+ 	set_bit(NF_FLOW_TEARDOWN, &flow->flags);
+ 	flow_offload_fixup_ct(flow->ct);
+--- a/net/netfilter/nft_flow_offload.c
++++ b/net/netfilter/nft_flow_offload.c
+@@ -8,6 +8,7 @@
+ #include <linux/spinlock.h>
+ #include <linux/netfilter/nf_conntrack_common.h>
+ #include <linux/netfilter/nf_tables.h>
++#include <net/dsfield.h>
+ #include <net/ip.h>
+ #include <net/flow.h>
+ #include <net/netfilter/nf_tables.h>
+@@ -15,6 +16,7 @@
+ #include <net/netfilter/nf_conntrack_core.h>
+ #include <net/netfilter/nf_conntrack_extend.h>
+ #include <net/netfilter/nf_flow_table.h>
++#include <net/netfilter/nf_conntrack_qos.h>
+ #include "../bridge/br_private.h"
+ #include <linux/if_ether.h>
+ 
+@@ -22,6 +24,22 @@
+ 	struct nft_flowtable	*flowtable;
+ };
+ 
++static void
++nft_flow_offload_dscp_init(struct flow_offload *flow, const struct nf_conn *ct,
++			   enum ip_conntrack_dir dir)
++{
++	struct nf_conn_qos *qos;
++
++	qos = nf_conn_qos_find(ct);
++	if (!qos)
++		return;
++
++	flow->tuplehash[dir].tuple.dscp =
++		FIELD_GET(INET_DSCP_MASK, qos->tos[dir].value);
++	flow->tuplehash[!dir].tuple.dscp =
++		FIELD_GET(INET_DSCP_MASK, qos->tos[!dir].value);
++}
++
+ static enum flow_offload_xmit_type nft_xmit_type(struct dst_entry *dst)
+ {
+ 	if (dst_xfrm(dst))
+@@ -483,6 +501,11 @@
+ 	struct flow_offload *flow;
+ 	enum ip_conntrack_dir dir;
+ 	struct nf_conn *ct;
++	struct nf_conn_qos *qos;
++	struct ipv6hdr *ip6h;
++	struct iphdr *iph;
++	u32 thoff;
++	u8 tos = 0;
+ 	int ret;
+ 
+ 	if (nft_flow_offload_skip(pkt->skb, nft_pf(pkt)))
+@@ -494,7 +517,14 @@
+ 
+ 	switch (ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum) {
+ 	case IPPROTO_TCP:
+-		tcph = skb_header_pointer(pkt->skb, nft_thoff(pkt),
++		thoff = nft_thoff(pkt);
++		if (!thoff) {
++			if (pkt->skb->protocol == htons(ETH_P_IP))
++				thoff = ip_hdrlen(pkt->skb);
++			else if (pkt->skb->protocol == htons(ETH_P_IPV6))
++				thoff = sizeof(struct ipv6hdr);
++		}
++		tcph = skb_header_pointer(pkt->skb, thoff,
+ 					  sizeof(_tcph), &_tcph);
+ 		if (unlikely(!tcph || tcph->fin || tcph->rst ||
+ 			     !nf_conntrack_tcp_established(ct)))
+@@ -526,10 +556,32 @@
+ 	if (!nf_ct_is_confirmed(ct))
+ 		goto out;
+ 
++	dir = CTINFO2DIR(ctinfo);
++
++	qos = nf_conn_qos_find(ct);
++	if (qos) {
++		struct net *net = nf_ct_net(ct);
++
++		switch (nft_pf(pkt)) {
++		case NFPROTO_IPV4:
++			iph = ip_hdr(pkt->skb);
++			tos = iph->tos;
++			break;
++		case NFPROTO_IPV6:
++			ip6h = ipv6_hdr(pkt->skb);
++			tos = ipv6_get_dsfield(ip6h);
++			break;
++		}
++
++		qos->tos[dir].value = tos;
++		atomic64_add(1, &qos->tos[dir].counter);
++
++		if (atomic64_read(&qos->tos[dir].counter) < net->ct.sysctl_qos)
++			goto out;
++	}
++
+ 	if (test_and_set_bit(IPS_OFFLOAD_BIT, &ct->status))
+ 		goto out;
+-
+-	dir = CTINFO2DIR(ctinfo);
+ 	if (nft_flow_offload_is_bridging(pkt->skb)) {
+ 		if (nft_flow_route_bridging(pkt, ct, &route, dir, priv->flowtable) < 0)
+ 			goto err_flow_route;
+@@ -542,6 +594,8 @@
+ 	if (!flow)
+ 		goto err_flow_alloc;
+ 
++	nft_flow_offload_dscp_init(flow, ct, dir);
++
+ 	flow_offload_route_init(flow, &route);
+ 	if (tcph)
+ 		flow_offload_ct_tcp(ct);
