@@ -1,4 +1,8 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Copyright (C) 2022 MediaTek Inc.
+#
 
 source /sbin/flowtable.sh
 
@@ -18,7 +22,7 @@ WED_ENABLE=0
 NFT_ENABLE=1
 HW_OFFLOAD=1
 
-WIFI_MODULE_LIST='mt7915e mt7996e'
+WIFI_MODULE_LIST='mt7915e mt7996e mt7999e'
 
 get_if_info()
 {
@@ -29,7 +33,8 @@ get_if_info()
 	do
 		if [[ "$vif" == "eth"* ]] ||  \
 		[[ "$vif" == "lan"* ]] || [[ "$vif" == "wan"* ]] || \
-		[[ "$vif" == "wlan"* ]] || [[ "$vif" == "phy"* ]]; then
+		[[ "$vif" == "wlan"* ]] || [[ "$vif" == "phy"* ]] || \
+		[[ "$vif" == *"mld"* ]]; then
 			RPS_IF_LIST="$RPS_IF_LIST $vif"
 		fi
 	done;
@@ -126,7 +131,7 @@ MT7988()
 
 	for vif in $NET_IF_LIST;
 	do
-		if [[ "$vif" == "wlan"* ]] || [[ "$vif" == "phy"* ]]; then
+		if [[ "$vif" == "wlan"* ]] || [[ "$vif" == "phy"* ]] || [[ "$vif" == *"mld"* ]]; then
 			WIFI_IF_LIST="$WIFI_IF_LIST $vif"
 		fi
 	done;
@@ -180,8 +185,8 @@ set_rps_cpu_bitmap()
 		eval rps_list=\$CPU${num}_RPS
 		dbg2 "# CPU$num: rps_list=$rps_list"
 		for i in $rps_list; do
-			var=${VAR_PREFIX}_${i//-/_}
-			var=${var//./_}
+			var=${VAR_PREFIX}_${i//'-'/_}
+			var=${var//'.'/_}
 			eval ifval=\$$var
 			dbg2 "[var val before] \$$var=$ifval"
 			if [ -z "$ifval" ]; then
@@ -201,8 +206,8 @@ set_rps_cpus()
 {
 	dbg2 "# Setup rps of the interfaces, $RPS_IF_LIST."
 	for i in $RPS_IF_LIST; do
-		var=${VAR_PREFIX}_${i//-/_}
-		var=${var//./_}
+		var=${VAR_PREFIX}_${i//'-'/_}
+		var=${var//'.'/_}
 		eval cpu_map=\$$var
 		if [ -d /sys/class/net/$i ]; then
 			if [ ! -z $cpu_map ]; then
@@ -234,6 +239,18 @@ set_smp_affinity()
 			fi
 		done
 		num=`expr $num + 1`
+	done
+}
+
+# Improve SW path peak throughput by disabling the GRO fraglist feature.
+disable_gro_fraglist()
+{
+	for iface in /sys/class/net/*; do
+		iface=$(basename "$iface")
+
+		if ethtool -k "$iface" | grep -q "rx-gro-list"; then
+			ethtool -K "$iface" rx-gro-list off
+		fi
 	done
 }
 
@@ -269,4 +286,5 @@ setup_model
 set_rps_cpu_bitmap
 set_rps_cpus $DEFAULT_RPS
 set_smp_affinity
+disable_gro_fraglist
 #end of file
