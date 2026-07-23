@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenWrt <noreply@openwrt.org>
+Date: Sat, 18 Jul 2026 12:00:00 -1000
+Subject: [PATCH] net: airoha: qdma: call check_skb on all PPE hits
+
+check_skb() is currently only called when the PPE returns reason
+PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED (0x0f).  Other PPE hit
+reasons (e.g. INVALID entries after a disconnect) never trigger
+check_skb, so bridge subflows that were invalidated by 990-02 are
+never re-committed to hardware.
+
+Fix by calling check_skb() for any packet the PPE provides a valid
+hash for, regardless of the reason code.  The existing 100 ms rate
+limit in check_skb() prevents excessive processing.
+
+Signed-off-by: OpenWrt <noreply@openwrt.org>
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -970,7 +970,7 @@
+ 				     PKT_HASH_TYPE_L4);
+ 
+ 		reason = FIELD_GET(AIROHA_RXD4_PPE_CPU_REASON, msg1);
+-		if (reason == PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
++		if (hash != AIROHA_RXD4_FOE_ENTRY)
+ 			airoha_ppe_check_skb(&eth->ppe->dev, q->skb, hash,
+ 					     false);
+ 
