@@ -103,7 +103,7 @@ define Device/gemtek_w1700k-ubi
        the end of flash. A reinstall including corrected chainloader is needed.
   DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 \
 		    kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-basic-mbedtls \
-		    rtl8261n-firmware
+		    rtl826x-firmware
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -128,7 +128,8 @@ define Device/nokia_valyrian
   DEVICE_PACKAGES := kmod-spi-gpio kmod-gpio-nxp-74hc164 kmod-leds-gpio \
     kmod-i2c-an7581 kmod-i2c-gpio kmod-iio-richtek-rtq6056 \
     kmod-sfp kmod-phy-aeonsemi-as21xxx \
-    kmod-mt7996-firmware
+    kmod-mt7996-firmware airoha-en7581-mt7996-npu-firmware \
+    kmod-usb3
   ARTIFACT/preloader.bin := an7581-preloader nokia_valyrian
   ARTIFACT/bl31-uboot.fip := an7581-bl31-uboot nokia_valyrian
   ARTIFACTS := preloader.bin bl31-uboot.fip
@@ -180,5 +181,3 @@ define Device/nokia_xg-040g-md-ubi
   ARTIFACTS := bl31-uboot.fip preloader.bin
 endef
 TARGET_DEVICES += nokia_xg-040g-md-ubi
-
-include smartrg.mk
