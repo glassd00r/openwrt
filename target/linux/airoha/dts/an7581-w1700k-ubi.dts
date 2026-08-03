@@ -303,7 +303,7 @@
 };
 
 &npu {
-	status = "okay";
+	status = "disabled";
 };
 
 &eth {
