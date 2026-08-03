@@ -264,8 +264,8 @@
 			#size-cells = <0>;
 			nvmem-cells = <&eeprom>;
 			nvmem-cell-names = "eeprom";
-			airoha,npu = <&npu>;
-			airoha,eth = <&eth>;
+			// airoha,npu = <&npu>;
+			// airoha,eth = <&eth>;
 
 			band@0 {
 				/* 2.4 GHz */
