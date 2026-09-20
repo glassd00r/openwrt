@@ -148,11 +148,12 @@ index b7729fd..1e77896 100644
  	return mode_changed;
  }
  
-@@ -281,41 +308,43 @@ static void mtk_usxgmii_pcs_get_an_state(struct mtk_usxgmii_pcs *mpcs,
+@@ -281,42 +308,44 @@ static void mtk_usxgmii_pcs_get_an_state(struct mtk_usxgmii_pcs *mpcs,
  	phylink_decode_usxgmii_word(state, lpa);
  }
  
 -static void mtk_usxgmii_pcs_get_state(struct phylink_pcs *pcs,
+-				      unsigned int neg_mode,
 -				      struct phylink_link_state *state)
 +static void mtk_usxgmii_pcs_update_state(struct mtk_usxgmii_pcs *mpcs)
  {
@@ -190,6 +191,7 @@ index b7729fd..1e77896 100644
 +}
 +
 +static void mtk_usxgmii_pcs_get_state(struct phylink_pcs *pcs,
++				      unsigned int neg_mode,
 +				      struct phylink_link_state *state)
 +{
 +	struct mtk_usxgmii_pcs *mpcs = pcs_to_mtk_usxgmii_pcs(pcs);
@@ -330,11 +332,15 @@ index ef936d9..8c18c1c 100644
   * @np:		Pointer to device node indentifying a MediaTek USXGMII PCS
 diff --git a/include/linux/phy/phy-mtk-xfi-tphy.h b/include/linux/phy/phy-mtk-xfi-tphy.h
 new file mode 100644
-index 0000000..0e0ac9d
+index 0000000..fadeb30
 --- /dev/null
 +++ b/include/linux/phy/phy-mtk-xfi-tphy.h
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,27 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Copyright (C) 2025 MediaTek Inc.
++ */
++
 +#ifndef __LINUX_PHY_MTK_XFI_TPHY_H
 +#define __LINUX_PHY_MTK_XFI_TPHY_H
 +
